@@ -2,14 +2,18 @@ const { WebSocketServer } = require("ws");
 
 const wss = new WebSocketServer({ port: 1145 });
 
+const PlayerMap = new Map();
+const LobbyMap = new Map();
+
 wss.on("connection", (ws) => {
   console.log("New user connected");
 
   ws.on("message", (message) => {
-    console.log("New Trafic!!!");
-    console.log(JSON.parse(message));
+    console.log("$$$$$$$$$$$$$$ { New Request recived } $$$$$$$$$$$$$$$$$$");
 
-    const { type, data } = JSON.parse(message);
+    const { username, type, data, lobbyName } = JSON.parse(message);
+
+    console.log("Type: ", type, " Data: ", data);
 
     switch (type) {
       case "TEST":
@@ -20,10 +24,18 @@ wss.on("connection", (ws) => {
           }),
         );
         break;
-      case "CreateLobby":
+      case "CREATE_LOBBY":
         //createlobbylogic
+        console.log("CREATE_LOBBY");
+        console.log("User creating lobby:", username);
+        
+        console.log("Lobby Name:", lobbyName);
+        
+
         break;
-      case "JoinLobby":
+      case "JOIN_LOBBY":
+        console.log("JOIN_LOBBY");
+
         //joinlobby
         break;
     }
