@@ -4,7 +4,7 @@ import { io, Socket } from "socket.io-client";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-
+import { getToken } from '../actions'; // Import your action
 
 interface Lobby {
     name: string;
@@ -40,10 +40,24 @@ function Main() {
     const [lobbyName, setLobbyName] = useState<string | null>("Lobbyy")
     const [lobbyList, setLobbyList] = useState(null)
 
-    
+
     useEffect(() => {
-        // Initialize the Socket.IO connection
-        const socket = io('ws://localhost:1145');
+
+        async function socketInit() {
+            const token = await getToken();
+            console.log(token?.value);
+
+            if (!token) {
+                throw new Error("FAILED IN ESTABLISHING CONNECTION")
+            }
+            const socket = io('ws://localhost:1145',{
+                auth:{
+                    token:token.value
+                }
+            });
+
+            // Initialize the Socket.IO connection
+        // const socket = io('ws://localhost:1145');
 
         // Socket.IO uses .on() for event listeners
         socket.on('connect', () => {
@@ -76,6 +90,11 @@ function Main() {
         return () => {
             socket.disconnect();
         };
+
+        }
+
+        socketInit()
+        
     }, []);
     function createLobby(lobbyName: string) {
         console.log("Attempting creation of a new lobby");
