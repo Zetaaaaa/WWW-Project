@@ -1,16 +1,20 @@
 'use client'
 // ES modules
 import { io, Socket } from "socket.io-client";
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
 
 interface Lobby {
     name: string;
     variant: string;
     count: number;
     players: [];
+}
+
+interface mainProps {
+    socketProp: Socket
 }
 
 import {
@@ -36,7 +40,7 @@ function Main() {
     const [lobbyName, setLobbyName] = useState<string | null>("Lobbyy")
     const [lobbyList, setLobbyList] = useState(null)
 
-    // eslint-disable-next-line react-hooks/rules-of-hooks
+    
     useEffect(() => {
         // Initialize the Socket.IO connection
         const socket = io('ws://localhost:1145');
@@ -94,40 +98,39 @@ function Main() {
     }
     return (
         // grid-cols-2
-        <div className="w-full h-full grid grid-cols-1 gap-1">
+        <div className="w-full h-full flex flex-col gap-1">
 
-            <div className="light:text-black text-center dark:text-sky-100">
+            <div className="light:text-black flex-1/1 text-center dark:text-sky-100">
                 <p>Actions</p>
-                <div className="flex mt-3 flex-col items-center gap-5">
+                <div className="flex mt-3 flex-col row-span-2 col-span-2  items-center gap-5">
                     {/* <Button onClick={() => test(ws)} variant={"outline"}>Test Request</Button> */}
                     <Dialog>
                         <DialogTrigger asChild>
                             <Button variant="outline">Create Lobby</Button>
                         </DialogTrigger>
                         <DialogContent className="sm:max-w-sm">
-
-                                <DialogHeader>
-                                    <DialogTitle>Create Lobby</DialogTitle>
-                                    <DialogDescription>
-                                        Create a game lobby to play with your friends!
-                                    </DialogDescription>
-                                </DialogHeader>
-                                <FieldGroup>
-                                    <Field>
-                                        <Label htmlFor="username">Username</Label>
-                                        <Input id="username" name="username" placeholder="The biggest liar" defaultValue={"user"} onInput={(e) => { setUsername(e.currentTarget.value) }} />
-                                    </Field>
-                                    <Field>
-                                        <Label htmlFor="lobbyname">Lobby Name</Label>
-                                        <Input id="lobbyname" type="text" placeholder="Liar's table" defaultValue={"1"} maxLength={20} minLength={2} onInput={(e) => { setLobbyName(e.currentTarget.value) }} />
-                                    </Field>
-                                </FieldGroup>
-                                <DialogFooter>
-                                    <DialogClose asChild>
-                                        <Button variant="outline">Cancel</Button>
-                                    </DialogClose>
-                                    <Button onClick={() => createLobby(lobbyName)} type="submit">Create</Button>
-                                </DialogFooter>
+                            <DialogHeader>
+                                <DialogTitle>Create Lobby</DialogTitle>
+                                <DialogDescription>
+                                    Create a game lobby to play with your friends!
+                                </DialogDescription>
+                            </DialogHeader>
+                            <FieldGroup>
+                                <Field>
+                                    <Label htmlFor="username">Username</Label>
+                                    <Input id="username" name="username" placeholder="The biggest liar" defaultValue={"user"} onInput={(e) => { setUsername(e.currentTarget.value) }} />
+                                </Field>
+                                <Field>
+                                    <Label htmlFor="lobbyname">Lobby Name</Label>
+                                    <Input id="lobbyname" type="text" placeholder="Liar's table" defaultValue={"1"} maxLength={20} minLength={2} onInput={(e) => { setLobbyName(e.currentTarget.value) }} />
+                                </Field>
+                            </FieldGroup>
+                            <DialogFooter>
+                                <DialogClose asChild>
+                                    <Button variant="outline">Cancel</Button>
+                                </DialogClose>
+                                <Button onClick={() => createLobby(lobbyName)} type="submit">Create</Button>
+                            </DialogFooter>
 
                         </DialogContent>
                     </Dialog>
@@ -139,62 +142,67 @@ function Main() {
             </div> */}
             {/* <p className="text-black text-lg font-semibold">Table</p> */}
             {/* albo to https://reactbits.dev/components/animated-list */}
-            <Table>
-                <TableCaption>Online lobbies: {lobbyList != null ? lobbyList.length : "00a"}</TableCaption>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>__</TableHead>
-                        <TableHead>Lobby Name</TableHead>
-                        <TableHead>Variant</TableHead>
-                        <TableHead>People Count</TableHead>
-                        <TableHead>Actions</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
+            <div className="w-full h-full flex flex-col items-center justify-center">
+                <div className="h-full w-4/5">
+                    <Table className="w-full">
+                        <TableCaption>Online lobbies: {lobbyList != null ? lobbyList.length : "00a"}</TableCaption>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>__</TableHead>
+                                <TableHead>Lobby Name</TableHead>
+                                <TableHead>Variant</TableHead>
+                                <TableHead>People Count</TableHead>
+                                <TableHead>Actions</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
 
-                    {lobbyList != null &&
-                        lobbyList.map(([id, lobby]: [string, Lobby]) => {
-                            return (
-                                <TableRow key={id}>
-                                    <TableCell>{id+1}.</TableCell>
-                                    <TableCell>{lobby.name}</TableCell>
-                                    <TableCell>{lobby.variant}</TableCell>
-                                    <TableCell>1/{lobby.count}</TableCell>
-                                    <TableCell>
-                                        <Dialog>
-                                            <DialogTrigger asChild>
-                                                <Button>Join</Button>
-                                            </DialogTrigger>
-                                            <DialogContent className="sm:max-w-sm">
-                                                <DialogHeader>
-                                                    <DialogTitle>Join the game : {lobby.name}</DialogTitle>
-                                                    <DialogDescription>
-                                                        Type your username and join the game!
-                                                    </DialogDescription>
-                                                </DialogHeader>
-                                                <FieldGroup>
-                                                    <Field>
-                                                        <Label htmlFor="username">Username</Label>
-                                                        <Input id="username" name="username" placeholder="The biggest liar" defaultValue={"user"} onInput={(e) => { setUsername(e.currentTarget.value) }} />
-                                                    </Field>
-                                                </FieldGroup>
-                                                <DialogFooter>
-                                                    <DialogClose asChild>
-                                                        <Button variant="outline">Cancel</Button>
-                                                    </DialogClose>
-                                                    {/* SUBJECT TO CHANGE DUE TO THE NATURE OF NAMES  ->> CODE JHD12S */}
-                                                    <Button onClick={() => joinLobby(lobby.name)} type="submit">Join</Button>
-                                                </DialogFooter>
-                                            </DialogContent>
-                                        </Dialog>
-                                    </TableCell>
-                                </TableRow>
-                            )
-                        })
-                    }
-                </TableBody>
-            </Table>
-        </div >
+                            {lobbyList != null &&
+                                lobbyList.map(([id, lobby]: [string, Lobby]) => {
+                                    return (
+                                        <TableRow key={id}>
+                                            <TableCell>{id + 1}.</TableCell>
+                                            <TableCell>{lobby.name}</TableCell>
+                                            <TableCell>{lobby.variant}</TableCell>
+                                            <TableCell>1/{lobby.count}</TableCell>
+                                            <TableCell>
+                                                <Dialog>
+                                                    <DialogTrigger asChild>
+                                                        <Button>Join</Button>
+                                                    </DialogTrigger>
+                                                    <DialogContent className="sm:max-w-sm">
+                                                        <DialogHeader>
+                                                            <DialogTitle>Join the game : {lobby.name}</DialogTitle>
+                                                            <DialogDescription>
+                                                                Type your username and join the game!
+                                                            </DialogDescription>
+                                                        </DialogHeader>
+                                                        <FieldGroup>
+                                                            <Field>
+                                                                <Label htmlFor="username">Username</Label>
+                                                                <Input id="username" name="username" placeholder="The biggest liar" defaultValue={"user"} onInput={(e) => { setUsername(e.currentTarget.value) }} />
+                                                            </Field>
+                                                        </FieldGroup>
+                                                        <DialogFooter>
+                                                            <DialogClose asChild>
+                                                                <Button variant="outline">Cancel</Button>
+                                                            </DialogClose>
+                                                            {/* SUBJECT TO CHANGE DUE TO THE NATURE OF NAMES  ->> CODE JHD12S */}
+                                                            <Button onClick={() => joinLobby(lobby.name)} type="submit">Join</Button>
+                                                        </DialogFooter>
+                                                    </DialogContent>
+                                                </Dialog>
+                                            </TableCell>
+                                        </TableRow>
+                                    )
+                                })
+                            }
+                        </TableBody>
+                    </Table>
+                </div>
+
+            </div>
+        </div>
     )
 }
 
