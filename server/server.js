@@ -1,6 +1,9 @@
 // const { WebSocketServer } = require("ws");
 import { Server } from "socket.io";
-import jwt from 'jsonwebtoken' // npm install jsonwebtoken
+import jwt from 'jsonwebtoken' 
+
+
+const secretKeyMOVETOENV = "taxtimehowmuchsecret"
 const Status = Object.freeze({
   IN_PROGRESS: "IN_PROGRESS",
   FAILED: "FAILED",
@@ -48,7 +51,23 @@ io.listen(1145);
 // io.disconnectSockets();
 
 
+io.use((socket, next) => {
+  // Access the token sent from the client
+  const token = socket.handshake.auth.token;
 
+  console.log("validating");
+
+  if (!jwt.verify(token,secretKeyMOVETOENV)) {
+    console.log("FALSE");
+    return next(new Error("Missing token"));
+  }
+
+
+   console.log("TRUE");
+  // Validate the token...
+  // if valid:
+  next();
+});
 
 io.on("connection", (socket) => {
   console.log(`User ${socket.userId} connected with socket ID: ${socket.id}`);
@@ -76,8 +95,8 @@ io.on("connection", (socket) => {
 
   socket.on("JOIN_LOBBY", ({ userName, lobbyName }) => {
     console.log("User joining lobby:", userName, lobbyName);
-    // Add your join logic here
-    socket.join();
+    socket.join(lobbyName);
+    console.log(socket.rooms);
   });
 
   socket.on("JOINED_LOBBY", ({ lobbyName }) => {
@@ -110,5 +129,38 @@ io.on("connection", (socket) => {
     return lobby;
   }
 });
- 
 
+import express from 'express';
+import cors from 'cors'
+const app = express();
+const port = 3001;
+
+const corsOptions = {
+  origin: "http://localhost:3000", // Allow your frontend
+  methods: ["GET", "POST"],
+}
+
+
+app.use(express.json());
+app.use(cors(corsOptions)); // Apply it
+
+
+//DEBUGING
+// app.use((req, res, next) => {
+//   console.log('Incoming Headers:', req.headers);
+//   next();
+// });
+
+app.post('/api/token', (req, res) => {
+  let data = req.body
+  // console.log(data.uuid);
+  
+  let token = jwt.sign(data.uuid,secretKeyMOVETOENV);
+  // console.log("token",token);
+  res.send(token)
+
+})
+
+app.listen(port, () => {
+  console.log(`Example app listening on port ${port}`)
+})
