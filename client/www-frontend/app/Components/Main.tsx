@@ -1,7 +1,8 @@
 'use client'
 // ES modules
-import { io, Socket } from "socket.io-client";
-import { useEffect, useState } from "react";
+import { useRouter } from 'next/navigation'
+import { Socket } from "socket.io-client";
+import { useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getToken } from '../actions'; // Import your action
@@ -13,9 +14,6 @@ interface Lobby {
     players: [];
 }
 
-interface mainProps {
-    socketProp: Socket
-}
 
 import {
     Dialog,
@@ -31,78 +29,76 @@ import {
 import { Field, FieldGroup } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { getSocket } from "../lib/socket";
 
 function Main() {
 
     const [socket, setSocket] = useState<Socket | any>(null);
-
-    const [userName, setUsername] = useState<string>('user')
-    const [lobbyName, setLobbyName] = useState<string | null>("Lobbyy")
+    const [lobbyName, setLobbyName] = useState<string | null>("Lobby")
     const [lobbyList, setLobbyList] = useState(null)
+
+  const router = useRouter()
 
 
     useEffect(() => {
-
-        async function socketInit() {
+        async function init() {
             const token = await getToken();
-            console.log(token?.value);
+            if (!token) return;
 
-            if (!token) {
-                throw new Error("FAILED IN ESTABLISHING CONNECTION")
-            }
-            const socket = io('ws://localhost:1145',{
-                auth:{
-                    token:token.value
-                }
+            // This will now always return the same connection
+            const socket = getSocket(token.value);
+
+            socket.on("connect", () => {
+                console.log("Connected with ID:", socket.id);
             });
 
-            // Initialize the Socket.IO connection
-        // const socket = io('ws://localhost:1145');
+            socket.on('disconnect', () => {
+                console.log('Disconnected from Socket.IO server');
+            });
 
-        // Socket.IO uses .on() for event listeners
-        socket.on('connect', () => {
-            console.log('Connected to Socket.IO server');
-        });
+            // Listen for custom events sent from your server
+            // Note: The server must be using socket.emit('event_name', data)
+            socket.on('LOBBY_CREATED', (data) => {
+                console.log("lobby is up!!!", data);
+            });
 
-        socket.on('disconnect', () => {
-            console.log('Disconnected from Socket.IO server');
-        });
+            socket.on('LOBBY_LIST', (lobbyData) => {
+                // console.log("GOT NEW LOBBY LIST:", lobbyData);
+                setLobbyList(lobbyData);
+            });
 
-        // Listen for custom events sent from your server
-        // Note: The server must be using socket.emit('event_name', data)
-        socket.on('LOBBY_CREATED', (data) => {
-            console.log("lobby is up!!!", data);
-        });
+            socket.on('JOINED_LOBBY',(data)=>{
+                console.log("JOINED LOBBY",data);
+                router.push("game/"+data)
+                
+                
+            })
 
-        socket.on('LOBBY_LIST', (lobbyData) => {
-            // console.log("GOT NEW LOBBY LIST:", lobbyData);
-            setLobbyList(lobbyData);
-        });
+            socket.on('errorResponse', (content) => {
+                console.error("ERROR", content);
+            });
 
-        socket.on('errorResponse', (content) => {
-            console.error("ERROR", content);
-        });
+            // Store in state so you can use it elsewhere in your component
+            setSocket(socket);
 
-        // Store in state so you can use it elsewhere in your component
-        setSocket(socket);
-
-        // Cleanup on unmount
-        return () => {
-            socket.disconnect();
-        };
-
+            // Cleanup on unmount
+            return () => {
+                socket.disconnect();
+            };
         }
-
-        socketInit()
-        
+        init();
     }, []);
+
+
+
+
+
     function createLobby(lobbyName: string) {
         console.log("Attempting creation of a new lobby");
 
         // Socket.IO automatically handles serialization
         socket.emit("CREATE_LOBBY", {
             lobbyName: lobbyName,
-            userName: userName
         });
     }
 
@@ -112,12 +108,13 @@ function Main() {
         // Send the object directly
         socket.emit("JOIN_LOBBY", {
             lobbyName: lobbyName,
-            userName: userName
         });
     }
     return (
         // grid-cols-2
         <div className="w-full h-full flex flex-col gap-1">
+
+
 
             <div className="light:text-black flex-1/1 text-center dark:text-sky-100">
                 <p>Actions</p>
@@ -136,12 +133,8 @@ function Main() {
                             </DialogHeader>
                             <FieldGroup>
                                 <Field>
-                                    <Label htmlFor="username">Username</Label>
-                                    <Input id="username" name="username" placeholder="The biggest liar" defaultValue={"user"} onInput={(e) => { setUsername(e.currentTarget.value) }} />
-                                </Field>
-                                <Field>
                                     <Label htmlFor="lobbyname">Lobby Name</Label>
-                                    <Input id="lobbyname" type="text" placeholder="Liar's table" defaultValue={"1"} maxLength={20} minLength={2} onInput={(e) => { setLobbyName(e.currentTarget.value) }} />
+                                    <Input id="lobbyname" type="text" placeholder="Liar's table" defaultValue={lobbyName} maxLength={20} minLength={2} onInput={(e) => { setLobbyName(e.currentTarget.value) }} />
                                 </Field>
                             </FieldGroup>
                             <DialogFooter>
@@ -185,32 +178,8 @@ function Main() {
                                             <TableCell>{lobby.variant}</TableCell>
                                             <TableCell>1/{lobby.count}</TableCell>
                                             <TableCell>
-                                                <Dialog>
-                                                    <DialogTrigger asChild>
-                                                        <Button>Join</Button>
-                                                    </DialogTrigger>
-                                                    <DialogContent className="sm:max-w-sm">
-                                                        <DialogHeader>
-                                                            <DialogTitle>Join the game : {lobby.name}</DialogTitle>
-                                                            <DialogDescription>
-                                                                Type your username and join the game!
-                                                            </DialogDescription>
-                                                        </DialogHeader>
-                                                        <FieldGroup>
-                                                            <Field>
-                                                                <Label htmlFor="username">Username</Label>
-                                                                <Input id="username" name="username" placeholder="The biggest liar" defaultValue={"user"} onInput={(e) => { setUsername(e.currentTarget.value) }} />
-                                                            </Field>
-                                                        </FieldGroup>
-                                                        <DialogFooter>
-                                                            <DialogClose asChild>
-                                                                <Button variant="outline">Cancel</Button>
-                                                            </DialogClose>
-                                                            {/* SUBJECT TO CHANGE DUE TO THE NATURE OF NAMES  ->> CODE JHD12S */}
-                                                            <Button onClick={() => joinLobby(lobby.name)} type="submit">Join</Button>
-                                                        </DialogFooter>
-                                                    </DialogContent>
-                                                </Dialog>
+                                                {/* SUBJECT TO CHANGE DUE TO THE NATURE OF NAMES  ->> CODE JHD12S */}
+                                                <Button onClick={() => joinLobby(lobby.name)} type="submit">Join</Button>
                                             </TableCell>
                                         </TableRow>
                                     )
