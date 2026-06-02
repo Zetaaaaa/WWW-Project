@@ -55,22 +55,24 @@ io.use((socket, next) => {
   // Access the token sent from the client
   const token = socket.handshake.auth.token;
 
-  console.log("validating");
+  // console.log("validating");
 
   if (!jwt.verify(token,secretKeyMOVETOENV)) {
     console.log("FALSE");
     return next(new Error("Missing token"));
   }
 
-
-   console.log("TRUE");
+  //  console.log("TRUE");
   // Validate the token...
   // if valid:
   next();
 });
 
 io.on("connection", (socket) => {
-  console.log(`User ${socket.userId} connected with socket ID: ${socket.id}`);
+  console.log("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
+  // console.log(socket);
+  
+  console.log(`User connected with socket ID: ${socket.id}`);
   activeSockets[socket.id] = socket;
   PlayerArr.push(socket.id);
 
@@ -97,6 +99,7 @@ io.on("connection", (socket) => {
     console.log("User joining lobby:", userName, lobbyName);
     socket.join(lobbyName);
     console.log(socket.rooms);
+    socket.emit("JOINED_LOBBY",lobbyName)
   });
 
   socket.on("JOINED_LOBBY", ({ lobbyName }) => {
@@ -104,7 +107,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", (reason) => {
-    // console.log(`User ${socket.id} left: ${reason}`);
+    console.log(`User ${socket.id} left: ${reason}`);
     PlayerArr = PlayerArr.filter((user) => user != socket.id);
     console.log(PlayerArr);
   });
@@ -155,7 +158,7 @@ app.post('/api/token', (req, res) => {
   let data = req.body
   // console.log(data.uuid);
   
-  let token = jwt.sign(data.uuid,secretKeyMOVETOENV);
+  let token = jwt.sign(data.uuidName,secretKeyMOVETOENV);
   // console.log("token",token);
   res.send(token)
 
