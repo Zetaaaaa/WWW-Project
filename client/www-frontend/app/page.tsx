@@ -1,6 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+'use client'
 import Navbar from "./Components/navbar";
 import InitialConnectionWrapper from "./InitialConnectionWrapper";
+
+
+
 
 
 function page() {
