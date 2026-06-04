@@ -4,7 +4,8 @@ import { io, Socket } from "socket.io-client";
 import { getToken } from '../../actions'; // Import your action
 import { getSocket } from "../../lib/socket";
 import { useRouter } from 'next/navigation'
-
+import { getUsername } from '../../actions';
+import { Button } from '@/components/ui/button';
 
 
 
@@ -12,11 +13,20 @@ function Lobby({ params }: { params: Promise<{ lobby: string }> }) {
     const [socket, setSocket] = useState<Socket | any>(null);
     const [lobbyName, setlobbyName] = useState(null);
     const router = useRouter()
+    const [userName, setUsername] = useState<string>('user')
+
+
 
     useEffect(() => {
         async function socketInit() {
             const token = await getToken();
-            console.log(token?.value);
+
+            console.log("token", token?.value);
+
+            //get username
+            const username = await getUsername(token)
+            setUsername(username)
+
 
             if (!token) {
                 throw new Error("FAILED IN ESTABLISHING CONNECTION")
@@ -58,11 +68,15 @@ function Lobby({ params }: { params: Promise<{ lobby: string }> }) {
 
     return (
         <div>
-            {lobbyName !=null?
-             <h1>Current Lobby ID: {lobbyName}</h1>
-            :
-            null}
-           
+            {lobbyName != null ?
+                <h1>Current Lobby ID: {lobbyName}, UserName {userName}</h1>
+                :
+                null}
+
+                <Button onClick={ ()=>{
+                    socket.emit('TESTING')
+                }}>test fetch</Button>
+
         </div>
     )
 }

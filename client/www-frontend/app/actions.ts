@@ -2,7 +2,6 @@
 import { cookies } from "next/headers";
 import { v4 as uuidv4 } from "uuid";
 
-
 export async function ensureUuidCookie() {
   const cookieStore = await cookies();
 
@@ -21,7 +20,19 @@ export async function setTokenCookie(token: string) {
   cookieStore.set("token", token, { httpOnly: true, secure: true });
 }
 
-export async function getToken(){
+export async function getToken() {
   const cookieStore = await cookies();
-  return cookieStore.get("token")
+  return cookieStore.get("token");
+}
+
+export async function getUsername(token:string) {
+  const response = await fetch("http://localhost:3001/api/token/username", {
+    method: "POST",
+    headers: {
+      "Content-Type": "Application/json",
+      Authorization: `Bearer ${token?.value}`,
+    },
+  });
+  const result = await response.text();
+  return result;
 }
