@@ -22,18 +22,23 @@ function InitialConnectionWrapper() {
     const [check, setCheck] = useState(false)
     const [userName, setUsername] = useState<string>('user')
 
+        console.log(userName);
 
     async function init() {
-        // console.log(userName);
+        console.log(userName);
         const uuid = await ensureUuidCookie();
         // console.log(uuid + userName);
 
+        const tokenString = `${uuid}TOKENSTRING${userName}`
+
+        console.log(tokenString);
+        
         const response = await fetch('http://localhost:3001/api/token', {
             method: "POST",
             headers: {
                 'content-type': 'application/json',
             },
-            body: JSON.stringify({ uuidName: (uuid + userName) })
+            body: JSON.stringify({ uuid: uuid, username: userName })
         }
         );
 
@@ -41,12 +46,10 @@ function InitialConnectionWrapper() {
         //TOKEN HANDLING
         const token = await response.text()
         setTokenCookie(token)
-        setCheck(true)
-        
+        setCheck(true)   
     }
-
     useEffect(() => {
-//   console.log("State has changed to:", check);
+
 }, [check]); // Runs every time 'check' updates
 
     function confirmData() {

@@ -107,6 +107,7 @@ function Main() {
 
         // Send the object directly
         socket.emit("JOIN_LOBBY", {
+               userName: 'temp',
             lobbyName: lobbyName,
         });
     }
