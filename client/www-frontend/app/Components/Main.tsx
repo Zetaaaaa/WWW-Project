@@ -31,14 +31,35 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { getSocket } from "../lib/socket";
 
+
+
+
 function Main() {
 
-    const [socket, setSocket] = useState<Socket | any>(null);
     const [lobbyName, setLobbyName] = useState<string | null>("Lobby")
     const [lobbyList, setLobbyList] = useState(null)
+    const socketRef = useRef<any>(null);
+    const router = useRouter()
 
-  const router = useRouter()
+    function joinLobby(lobbyName: string) {
+        // 2. Access the socket via .current
+        if (!socketRef.current) return;
 
+        console.log("Attempting to join:", lobbyName);
+        socketRef.current.emit("JOIN_LOBBY", {
+            userName: 'temp',
+            lobbyName: lobbyName,
+        });
+    }
+
+    function createLobby(lobbyName: string) {
+        if (!socketRef.current) return;
+
+        console.log("Attempting creation of a new lobby");
+        socketRef.current.emit("CREATE_LOBBY", {
+            lobbyName: lobbyName,
+        });
+    }
 
     useEffect(() => {
         async function init() {
@@ -47,6 +68,7 @@ function Main() {
 
             // This will now always return the same connection
             const socket = getSocket(token.value);
+            socketRef.current = socket;
 
             socket.on("connect", () => {
                 console.log("Connected with ID:", socket.id);
@@ -59,19 +81,29 @@ function Main() {
             // Listen for custom events sent from your server
             // Note: The server must be using socket.emit('event_name', data)
             socket.on('LOBBY_CREATED', (data) => {
-                console.log("lobby is up!!!", data);
+                console.log("LOBBY_CREATED received:", data);
+
+                // Defensive check
+                if (!data || !data.lobby) {
+                    console.error("Error: Server did not return a valid lobby object.");
+                    return;
+                }
+
+                const name = data.lobby.name || data.lobby; // Fallback if structure varies
+                console.log("Attempting to join:", name);
+
+                joinLobby(name);
             });
 
             socket.on('LOBBY_LIST', (lobbyData) => {
-                // console.log("GOT NEW LOBBY LIST:", lobbyData);
+                console.log("GOT NEW LOBBY LIST:", lobbyData);
                 setLobbyList(lobbyData);
             });
 
-            socket.on('JOINED_LOBBY',(data)=>{
-                console.log("JOINED LOBBY",data);
-                router.push("game/"+data)
-                
-                
+            socket.on('JOINED_LOBBY', (data) => {
+                console.log("JOINED LOBBY", data);
+                router.push("game/" + data)
+
             })
 
             socket.on('errorResponse', (content) => {
@@ -79,7 +111,7 @@ function Main() {
             });
 
             // Store in state so you can use it elsewhere in your component
-            setSocket(socket);
+            // setSocket(socket);
 
             // Cleanup on unmount
             return () => {
@@ -90,27 +122,6 @@ function Main() {
     }, []);
 
 
-
-
-
-    function createLobby(lobbyName: string) {
-        console.log("Attempting creation of a new lobby");
-
-        // Socket.IO automatically handles serialization
-        socket.emit("CREATE_LOBBY", {
-            lobbyName: lobbyName,
-        });
-    }
-
-    function joinLobby(lobbyName: string) {
-        console.log("Attempting to join a lobby");
-
-        // Send the object directly
-        socket.emit("JOIN_LOBBY", {
-               userName: 'temp',
-            lobbyName: lobbyName,
-        });
-    }
     return (
         // grid-cols-2
         <div className="w-full h-full flex flex-col gap-1">

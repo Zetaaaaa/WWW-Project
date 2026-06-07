@@ -130,7 +130,7 @@ io.on("connection", (socket) => {
   socket.emit("LOBBY_LIST", lobbyArray);
 
   socket.on("CREATE_LOBBY", ({ userName, lobbyName }) => {
-    console.log("User creating lobby:", userName, "Name:", lobbyName);
+    console.log("User creating lobby: Name:", lobbyName);
 
     const lobby = createLobby(lobbyName);
 
@@ -162,6 +162,14 @@ io.on("connection", (socket) => {
     console.log(`Rooms:`);
     console.log(socket.rooms);
   });
+
+
+  socket.on("ROOM_HELLO",({data})=>{
+    
+    console.log(`User ${socket.id} in the room - letting know others`);
+    console.log(`ROOM_${data}`);
+    io.to(`ROOM_${data}`).emit("ROOM_REFRESH","nic")
+  })
 
   socket.on("disconnect", (reason) => {
     // console.log(`User ${socket.id} left: ${reason}`);
@@ -254,7 +262,7 @@ function getTokenData(token) {
 function setUpPlayerRefresh(refreshData, player, socket) {
   console.log("user exists asign token and rooms");
 
-  console.log(player);
+  // console.log(player);
   // console.log(player.username);
   // console.log(player.uuid);
   // console.log(player.rooms);
@@ -263,7 +271,7 @@ function setUpPlayerRefresh(refreshData, player, socket) {
  const roomValue = player.rooms.find((room) => {
     // console.log("ROOOOOOOOOM", room);
     if (room.startsWith("ROOM_")) {
-      console.log("JEST");
+      // console.log("JEST");
       return true; // <--- This tells find() "I found it!"
     }
     return false; // <--- Optional, but good practice
@@ -273,7 +281,7 @@ function setUpPlayerRefresh(refreshData, player, socket) {
   
 
   if (roomValue != null) {
-    console.log(roomValue);
+    // console.log(roomValue);
     socket.join(roomValue)
     player.rooms = [roomValue, socket.id];
   } else {
@@ -295,11 +303,7 @@ function setCurrentRooms(socket) {
 
   player.rooms = Array.from(socket.rooms);
 
-  console.log(player.rooms);
-  
-
-
-  
+  // console.log(player.rooms);
 
   PlayerArr[index] = player
 }

@@ -1,5 +1,5 @@
 'use client'
-import React, { use, useEffect, useState } from 'react'
+import React, { use, useEffect, useRef, useState } from 'react'
 import { io, Socket } from "socket.io-client";
 import { getToken } from '../../actions'; // Import your action
 import { getSocket } from "../../lib/socket";
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 
 
 function Lobby({ params }: { params: Promise<{ lobby: string }> }) {
+    const socketRef = useRef<any | Socket>(null);
     const [socket, setSocket] = useState<Socket | any>(null);
     const [lobbyName, setlobbyName] = useState(null);
     const router = useRouter()
@@ -21,7 +22,7 @@ function Lobby({ params }: { params: Promise<{ lobby: string }> }) {
         async function socketInit() {
             const token = await getToken();
 
-            console.log("token", token?.value);
+            // console.log("token", token?.value);
 
             //get username
             const username = await getUsername(token)
@@ -32,28 +33,32 @@ function Lobby({ params }: { params: Promise<{ lobby: string }> }) {
                 throw new Error("FAILED IN ESTABLISHING CONNECTION")
             }
             const socket = getSocket(token.value);
-
-            // Initialize the Socket.IO connection
-            // const socket = io('ws://localhost:1145');
+            socketRef.current = socket
 
             // Socket.IO uses .on() for event listeners
             socket.on('connect', () => {
-                console.log('Connected to Socket.IO server-LOBBY');
+                console.log('Connected to Lobby');
+
+
             });
 
             socket.on('disconnect', () => {
                 console.log('Disconnected from Socket.IO server');
             });
 
+            socket.on("ROOM_REFRESH", () => {
+                console.log("new player joined");
+            })
+
 
             socket.on('errorResponse', (content) => {
                 console.error("ERROR", content);
             });
-
-            // Store in state so you can use it elsewhere in your component
-            setSocket(socket);
             const { lobby } = await params
-            console.log("LOBBY", lobby);
+            socketRef.current.emit("ROOM_HELLO", { data: lobby });
+
+
+            // // console.log("LOBBY", lobby);
             setlobbyName(lobby)
             // Cleanup on unmount
             return () => {
@@ -67,15 +72,24 @@ function Lobby({ params }: { params: Promise<{ lobby: string }> }) {
 
 
     return (
-        <div>
+        <div className='w-full h-full flex flex-col items-center my-20 gap-10'>
             {lobbyName != null ?
                 <h1>Current Lobby ID: {lobbyName}, UserName {userName}</h1>
                 :
                 null}
 
-                <Button onClick={ ()=>{
-                    socket.emit('TESTING')
+            <div>
+                <Button onClick={() => {
+                    socketRef.current?.emit('TESTING');
                 }}>test fetch</Button>
+            </div>
+
+
+
+            <div>
+                <p>Users in the lobby</p>
+            </div>
+
 
         </div>
     )
