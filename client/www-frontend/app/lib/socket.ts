@@ -5,11 +5,14 @@ let socketInstance: any = null;
 
 //ensuring singleton - only one socket per client
 export const getSocket = (token: string) => {
-    if (!socketInstance) {
-        // console.log("NEW SOCKET");
-        socketInstance = io("ws://localhost:1145", {
-            auth: { token },
-        });
-    }
-    return socketInstance;
+  if (!socketInstance) {
+    // console.log("NEW SOCKET");
+    socketInstance = io("ws://localhost:1145", {
+      auth: { token },
+      reconnection: true,
+      reconnectionDelay: 10000, // defaults to 1000
+      reconnectionDelayMax: 10000, // defaults to 5000
+    });
+  }
+  return socketInstance;
 };
