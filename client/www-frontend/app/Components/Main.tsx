@@ -14,6 +14,10 @@ interface Lobby {
     players: [];
 }
 
+interface MainProps {
+    userName: string;
+}
+
 
 import {
     Dialog,
@@ -34,7 +38,7 @@ import { getSocket } from "../lib/socket";
 
 
 
-function Main() {
+function Main( {userName}:MainProps) {
 
     const [lobbyName, setLobbyName] = useState<string | null>("Lobby")
     const [lobbyList, setLobbyList] = useState(null)
@@ -47,7 +51,7 @@ function Main() {
 
         console.log("Attempting to join:", lobbyName);
         socketRef.current.emit("JOIN_LOBBY", {
-            userName: 'temp',
+            userName: userName,
             lobbyName: lobbyName,
         });
     }
@@ -75,6 +79,7 @@ function Main() {
             });
 
             socket.on('disconnect', () => {
+                socket.emit("DISCONNECT")
                 console.log('Disconnected from Socket.IO server');
             });
 
@@ -172,7 +177,6 @@ function Main() {
                         <TableCaption>Online lobbies: {lobbyList != null ? lobbyList.length : "00a"}</TableCaption>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>__</TableHead>
                                 <TableHead>Lobby Name</TableHead>
                                 <TableHead>Variant</TableHead>
                                 <TableHead>People Count</TableHead>
@@ -185,7 +189,6 @@ function Main() {
                                 lobbyList.map(([id, lobby]: [string, Lobby]) => {
                                     return (
                                         <TableRow key={id}>
-                                            <TableCell>{id + 1}.</TableCell>
                                             <TableCell>{lobby.name}</TableCell>
                                             <TableCell>{lobby.variant}</TableCell>
                                             <TableCell>1/{lobby.count}</TableCell>
