@@ -1,9 +1,8 @@
 // const { WebSocketServer } = require("ws");
 import { Server } from "socket.io";
-import jwt from 'jsonwebtoken' 
+import jwt from "jsonwebtoken";
 
-
-const secretKeyMOVETOENV = "taxtimehowmuchsecret"
+const secretKeyMOVETOENV = "taxtimehowmuchsecret";
 const Status = Object.freeze({
   IN_PROGRESS: "IN_PROGRESS",
   FAILED: "FAILED",
@@ -33,17 +32,17 @@ class Player {
   }
 }
 
-let PlayerMap = new Map();
+// let PlayerMap = new Map();
 let PlayerArr = [];
-let LobbyMap = new Map();
+const LobbyMap = new Map();
 
 const activeSockets = {};
 
 //sample lobbies
 const lobbyTest = new Lobby("test", Variant.NORMAL, 5);
 const lobbyTest2 = new Lobby("test2", Variant.RANDOMIZER, 6);
-LobbyMap.set(0, lobbyTest);
-LobbyMap.set(1, lobbyTest2);
+LobbyMap.set("test", lobbyTest);
+LobbyMap.set("test2", lobbyTest2);
 
 // const wss = new WebSocketServer({ port: 1145 });
 
@@ -51,6 +50,10 @@ const io = new Server({
   cors: {
     origin: "http://localhost:3000",
     methods: ["GET", "POST"],
+  },
+  connectionStateRecovery: {
+    maxDisconnectionDuration: 2 * 60 * 1000,
+    skipMiddlewares: false,
   },
 });
 
@@ -68,41 +71,37 @@ io.use((socket, next) => {
   // console.log("validating");
 
   if (!jwt.verify(token, secretKeyMOVETOENV)) {
-    console.log("FALSE");
+    // console.log("FALSE");
     return next(new Error("Missing token"));
   }
-  console.log("checking if user is in the database");
+  // console.log("checking if user is in the database");
   const user = getTokenData(token);
 
   if (user) {
     let player = PlayerArr.filter((p) => p.uuid == user.uuid)[0];
-    
-    console.log(PlayerArr);
-    
-   
-    
+
+    // console.log(PlayerArr);
 
     if (player) {
       //doing something and replacing current record
       //number
       const index = PlayerArr.findIndex((p) => p.uuid === user.uuid);
-      
-      console.log("*&*&%&^%&%$&$%^$%*&",player);
-      console.log("*&*&%&^%&%$&$%^$%*&",user);
-      
-      
+
+      // console.log("*&*&%&^%&%$&$%^$%*&", player);
+      // console.log("*&*&%&^%&%$&$%^$%*&", user);
+
       const playerUpdate = setUpPlayerRefresh(user, player, socket);
       PlayerArr[index] = playerUpdate;
     } else {
-      console.log("new player being created");
+      // console.log("new player being created");
       // console.log(socket.rooms);
 
       let newPlayer = new Player(user.username, user.uuid, socket.id, [
         socket.id,
       ]);
 
-      console.log("PLAYAERASR",newPlayer);
-      
+      // console.log("PLAYAERASR", newPlayer);
+
       PlayerArr.push(newPlayer);
       // console.log(newPlayer);
     }
@@ -117,27 +116,26 @@ io.use((socket, next) => {
 });
 
 io.on("connection", (socket) => {
-  console.log(
-    "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$",
-  );
-  // console.log(socket);
+  const lobbyArray = Array.from(LobbyMap.entries());
 
   console.log(`User connected with socket ID: ${socket.id}`);
   activeSockets[socket.id] = socket;
-  // PlayerArr.push(socket.id);
+  PlayerArr.push(socket.id);
 
-  const lobbyArray = Array.from(LobbyMap.entries());
   socket.emit("LOBBY_LIST", lobbyArray);
 
   socket.on("CREATE_LOBBY", ({ userName, lobbyName }) => {
-    console.log("User creating lobby: Name:", lobbyName);
+    // console.log("User creating lobby: Name:", lobbyName);
 
     const lobby = createLobby(lobbyName);
 
     if (!lobby) {
       socket.emit("LOBBY_FAILED", { status: Status.FAILED, data: "nic" });
     } else {
-      socket.emit("LOBBY_CREATED", { status: Status.COMPLETED, lobby: lobby });
+      socket.emit("LOBBY_CREATED", {
+        status: Status.COMPLETED,
+        lobby: lobby,
+      });
 
       // Notify EVERYONE of the updated lobby list SUBJECT TO CHANGE
       const updatedList = Array.from(LobbyMap.entries());
@@ -149,8 +147,13 @@ io.on("connection", (socket) => {
     console.log("User joining lobby:", userName, lobbyName);
     socket.join(`ROOM_${lobbyName}`);
     // console.log(socket.rooms);
+
     socket.emit("JOINED_LOBBY", lobbyName);
-    setCurrentRooms(socket);
+    setCurrentRooms(socket, lobbyName, userName);
+  });
+
+  socket.on("DISCONNECT", () => {
+    console.log("&*&!@&^!*&^$SOMEONE IS LEAVING");
   });
 
   // socket.on("JOINED_LOBBY", ({ lobbyName }) => {
@@ -163,13 +166,12 @@ io.on("connection", (socket) => {
     console.log(socket.rooms);
   });
 
-
-  socket.on("ROOM_HELLO",({data})=>{
-    
+  socket.on("ROOM_HELLO", ({ data }) => {
     console.log(`User ${socket.id} in the room - letting know others`);
     console.log(`ROOM_${data}`);
-    io.to(`ROOM_${data}`).emit("ROOM_REFRESH","nic")
-  })
+    const players = fetchConnectedPeopleArray(data);
+    io.to(`ROOM_${data}`).emit("ROOM_REFRESH", { playerList: players });
+  });
 
   socket.on("disconnect", (reason) => {
     // console.log(`User ${socket.id} left: ${reason}`);
@@ -190,12 +192,21 @@ io.on("connection", (socket) => {
     let players = [];
     players.push(player);
     const lobby = new Lobby(lobbyName, Variant.NORMAL, 5, players);
-    PlayerMap.set(lobbyName, lobby);
+    // PlayerMap.set(lobbyName, lobby);
 
-    LobbyMap.set(LobbyMap.size, lobby);
-    console.log(LobbyMap);
+    LobbyMap.set(lobbyName, lobby);
+    // console.log(LobbyMap);
     io.emit("LOBBY_LIST", lobbyArray);
     return lobby;
+  }
+
+  function fetchConnectedPeopleArray(lobbyName) {
+    // console.log(LobbyMap);
+
+    const fetchedLobby = LobbyMap.get(lobbyName);
+
+    // console.log(fetchedLobby);
+    return fetchedLobby.players;
   }
 });
 
@@ -268,21 +279,18 @@ function setUpPlayerRefresh(refreshData, player, socket) {
   // console.log(player.rooms);
 
   player.username !== refreshData.name ? refreshData.name : player.username;
- const roomValue = player.rooms.find((room) => {
+  const roomValue = player.rooms.find((room) => {
     // console.log("ROOOOOOOOOM", room);
     if (room.startsWith("ROOM_")) {
       // console.log("JEST");
       return true; // <--- This tells find() "I found it!"
     }
     return false; // <--- Optional, but good practice
-});
-
-
-  
+  });
 
   if (roomValue != null) {
     // console.log(roomValue);
-    socket.join(roomValue)
+    socket.join(roomValue);
     player.rooms = [roomValue, socket.id];
   } else {
     player.rooms = [socket.id];
@@ -297,13 +305,19 @@ function setUpPlayerRefresh(refreshData, player, socket) {
   return player;
 }
 
-function setCurrentRooms(socket) {
+function setCurrentRooms(socket, lobbyName, userName) {
   const index = PlayerArr.findIndex((p) => p.socket == socket.id);
   let player = PlayerArr.filter((p) => p.socket == socket.id)[0];
-
   player.rooms = Array.from(socket.rooms);
-
   // console.log(player.rooms);
+  PlayerArr[index] = player;
 
-  PlayerArr[index] = player
+  const lobby = LobbyMap.get(lobbyName);
+  // console.log(LobbyMap);
+  // let arr = lobby.players
+
+  lobby.players.push(userName);
+  LobbyMap.set(lobbyName, lobby);
+
+  console.log(lobby.players);
 }
