@@ -18,7 +18,6 @@ interface MainProps {
     userName: string;
 }
 
-
 import {
     Dialog,
     DialogClose,
@@ -37,13 +36,13 @@ import { getSocket } from "../lib/socket";
 
 
 
-
-function Main( {userName}:MainProps) {
+function Main({ userName }: MainProps) {
 
     const [lobbyName, setLobbyName] = useState<string | null>("Lobby")
     const [lobbyList, setLobbyList] = useState(null)
     const socketRef = useRef<any>(null);
-    const router = useRouter()
+    const router = useRouter();
+
 
     function joinLobby(lobbyName: string) {
         // 2. Access the socket via .current
@@ -56,6 +55,7 @@ function Main( {userName}:MainProps) {
         });
     }
 
+
     function createLobby(lobbyName: string) {
         if (!socketRef.current) return;
 
@@ -66,7 +66,10 @@ function Main( {userName}:MainProps) {
     }
 
     useEffect(() => {
+
         async function init() {
+            console.log("init");
+
             const token = await getToken();
             if (!token) return;
 
@@ -74,53 +77,66 @@ function Main( {userName}:MainProps) {
             const socket = getSocket(token.value);
             socketRef.current = socket;
 
+            if (socket.connected) {
+                console.log("Already connected! Re-using session:", socket.id);
+                // Trigger logic for when you just "go back" to the page
+                socket.emit("GO_BACK");
+            } else {
+                console.log("Fresh connection being established...");
+                // socket.connect(); // Explicitly connect if it was offline ---- DANGEROUS!!!!!!!!!!!!!!!!!
+            }
+
             socket.on("connect", () => {
                 console.log("Connected with ID:", socket.id);
             });
 
             socket.on('disconnect', () => {
-                socket.emit("DISCONNECT")
+                // socket.emit("DISCONNECT")
                 console.log('Disconnected from Socket.IO server');
             });
 
             // Listen for custom events sent from your server
             // Note: The server must be using socket.emit('event_name', data)
-            socket.on('LOBBY_CREATED', (data) => {
+            const handleLobbyCreated = (data) => {
                 console.log("LOBBY_CREATED received:", data);
-
-                // Defensive check
                 if (!data || !data.lobby) {
                     console.error("Error: Server did not return a valid lobby object.");
                     return;
                 }
-
-                const name = data.lobby.name || data.lobby; // Fallback if structure varies
+                const name = data.lobby.name || data.lobby;
                 console.log("Attempting to join:", name);
+                joinLobby(name); // Upewnij się, że ta funkcja jest dostępna w zasięgu
+            };
 
-                joinLobby(name);
-            });
-
-            socket.on('LOBBY_LIST', (lobbyData) => {
+            const handleLobbyList = (lobbyData) => {
                 console.log("GOT NEW LOBBY LIST:", lobbyData);
                 setLobbyList(lobbyData);
-            });
+            };
 
-            socket.on('JOINED_LOBBY', (data) => {
+            const handleJoinedLobby = (data) => {
                 console.log("JOINED LOBBY", data);
-                router.push("game/" + data)
+                router.push("game/" + data);
+            };
 
-            })
-
-            socket.on('errorResponse', (content) => {
+            const handleErrorResponse = (content) => {
                 console.error("ERROR", content);
-            });
+            };
 
             // Store in state so you can use it elsewhere in your component
             // setSocket(socket);
 
+            socket.on('LOBBY_CREATED', handleLobbyCreated);
+            socket.on('LOBBY_LIST', handleLobbyList);
+            socket.on('JOINED_LOBBY', handleJoinedLobby);
+            socket.on('errorResponse', handleErrorResponse);
+
             // Cleanup on unmount
             return () => {
-                socket.disconnect();
+                socket.off('LOBBY_LIST', handleLobbyList);
+                // socket.off('JOINED_LOBBY', handleJoinedLobby);
+                // socket.off('errorResponse', handleError);
+                // socket.off('LOBBY_CREATED', handleLobbyCreated);
+                // socket.disconnect();
             };
         }
         init();
@@ -130,9 +146,6 @@ function Main( {userName}:MainProps) {
     return (
         // grid-cols-2
         <div className="w-full h-full flex flex-col gap-1">
-
-
-
             <div className="light:text-black flex-1/1 text-center dark:text-sky-100">
                 <p>Actions</p>
                 <div className="flex mt-3 flex-col row-span-2 col-span-2  items-center gap-5">
@@ -160,9 +173,12 @@ function Main( {userName}:MainProps) {
                                 </DialogClose>
                                 <Button onClick={() => createLobby(lobbyName)} type="submit">Create</Button>
                             </DialogFooter>
-
                         </DialogContent>
                     </Dialog>
+                      <Button onClick={() => {
+
+                    socketRef.current?.emit('TESTING');
+                }}>test fetch</Button>
                     <Button onClick={() => console.log("im a dud")} variant={"outline"}>Settings</Button>
                 </div>
             </div>
@@ -184,7 +200,6 @@ function Main( {userName}:MainProps) {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-
                             {lobbyList != null &&
                                 lobbyList.map(([id, lobby]: [string, Lobby]) => {
                                     return (
@@ -203,7 +218,6 @@ function Main( {userName}:MainProps) {
                         </TableBody>
                     </Table>
                 </div>
-
             </div>
         </div>
     )

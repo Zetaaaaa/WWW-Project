@@ -17,12 +17,34 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldGroup } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { getToken } from '@/app/actions'; // Import your action
 
 function InitialConnectionWrapper() {
-    const [check, setCheck] = useState(false)
+    const [isOpen, setIsOpen] = useState(false)
     const [userName, setUsername] = useState<string>('user')
+    const [userAuth, setUserAuth] = useState(false)
 
-   
+
+
+    useEffect(() => {
+
+        async function userExisits() {
+            const tokenCheck = await getToken();
+
+
+            // Correct way to check if tokenCheck is null, undefined, or falsey
+            if (tokenCheck) {
+                // console.log("Token is in place");
+                setUserAuth(true)
+            }
+            else {
+                console.log("Token is missing or invalid");
+                setIsOpen(true);
+            }
+
+        }
+        userExisits()
+    }, [])
 
     async function init() {
         console.log(userName);
@@ -32,7 +54,7 @@ function InitialConnectionWrapper() {
         const tokenString = `${uuid}TOKENSTRING${userName}`
 
         console.log(tokenString);
-        
+
         const response = await fetch('http://localhost:3001/api/token', {
             method: "POST",
             headers: {
@@ -45,21 +67,27 @@ function InitialConnectionWrapper() {
 
         //TOKEN HANDLING
         const token = await response.text()
-        setTokenCookie(token)
-        setCheck(true)   
-    }
-    useEffect(() => {
 
-}, [check]); // Runs every time 'check' updates
+        if (token) {
+            setTokenCookie(token)
+            setIsOpen(false)
+            setUserAuth(true)
+        }
+
+    }
+    // useEffect(() => {
+
+    // }, [check]); // Runs every time 'check' updates
 
     function confirmData() {
         init();
     }
 
-    return (
 
+
+    return (
         <>
-            <Dialog defaultOpen={true} open={!check}>
+            <Dialog defaultOpen={true} open={isOpen}>
                 <DialogContent showCloseButton={false} className="sm:max-w-70/100">
                     <DialogHeader>
                         <DialogTitle>Hello!</DialogTitle>
@@ -81,7 +109,7 @@ function InitialConnectionWrapper() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-            {check != false ?
+            {userAuth == true ?
                 <Main userName={userName}></Main>
                 : <p>Awaiting initial configuration</p>}
         </>
