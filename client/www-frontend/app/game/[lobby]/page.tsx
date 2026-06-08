@@ -3,7 +3,6 @@ import React, { use, useEffect, useRef, useState } from 'react'
 import { io, Socket } from "socket.io-client";
 import { getToken } from '../../actions'; // Import your action
 import { getSocket } from "../../lib/socket";
-import { useRouter } from 'next/navigation'
 import { getUsername } from '../../actions';
 import { Button } from '@/components/ui/button';
 
@@ -11,10 +10,9 @@ import { Button } from '@/components/ui/button';
 
 function Lobby({ params }: { params: Promise<{ lobby: string }> }) {
     const socketRef = useRef<any | Socket>(null);
-    const [socket, setSocket] = useState<Socket | any>(null);
     const [lobbyName, setlobbyName] = useState(null);
-    const router = useRouter()
     const [userName, setUsername] = useState<string>('user')
+    const [playerList, setPlayerlist] = useState<string[] | null>(null)
 
 
 
@@ -36,22 +34,25 @@ function Lobby({ params }: { params: Promise<{ lobby: string }> }) {
             socketRef.current = socket
 
             // Socket.IO uses .on() for event listeners
-            socket.on('connect', () => {
-                console.log('Connected to Lobby');
-
+            socketRef.current.on('connect', () => {
+                console.log("socket connections");
+                socketRef.current.emit("ROOM_HELLO", { data: lobby });
 
             });
 
-            socket.on('disconnect', () => {
+            socketRef.current.on('disconnect', () => {
                 console.log('Disconnected from Socket.IO server');
             });
 
-            socket.on("ROOM_REFRESH", () => {
+            socketRef.current.on("ROOM_REFRESH", ({ playerList }
+            ) => {
                 console.log("new player joined");
+                console.log(playerList);
+                setPlayerlist(playerList)
             })
 
 
-            socket.on('errorResponse', (content) => {
+            socketRef.current.on('errorResponse', (content) => {
                 console.error("ERROR", content);
             });
             const { lobby } = await params
@@ -66,7 +67,6 @@ function Lobby({ params }: { params: Promise<{ lobby: string }> }) {
             };
 
         }
-
         socketInit()
     }, []);
 
@@ -80,6 +80,8 @@ function Lobby({ params }: { params: Promise<{ lobby: string }> }) {
 
             <div>
                 <Button onClick={() => {
+                    console.log(playerList);
+
                     socketRef.current?.emit('TESTING');
                 }}>test fetch</Button>
             </div>
@@ -87,8 +89,14 @@ function Lobby({ params }: { params: Promise<{ lobby: string }> }) {
 
 
             <div>
-                <p>Users in the lobby</p>
+                {playerList != null ?
+                    <>
+                        <p>Users in the lobby</p>
+                        {playerList?.map((player, index) => { return <p key={index}>---- {player}</p> })}
+                    </>
+                    : null}
             </div>
+
 
 
         </div>
