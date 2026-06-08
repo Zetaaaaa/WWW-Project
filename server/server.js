@@ -12,6 +12,7 @@ const Status = Object.freeze({
 const Variant = Object.freeze({
   NORMAL: "normal",
   RANDOMIZER: "randomizer",
+  LIMITED: "limited",
 });
 
 class Lobby {
@@ -32,6 +33,14 @@ class Player {
   }
 }
 
+class PlayerGame {
+  constructor(username, uuid, hand) {
+    this.username = username;
+    this.uuid = uuid;
+    this.hand = { c1: "XXX", c2: "XXX " };
+  }
+}
+
 // let PlayerMap = new Map();
 let PlayerArr = [];
 const LobbyMap = new Map();
@@ -40,7 +49,7 @@ const activeSockets = {};
 
 //sample lobbies
 const lobbyTest = new Lobby("test", Variant.NORMAL, 5);
-const lobbyTest2 = new Lobby("test2", Variant.RANDOMIZER, 6);
+const lobbyTest2 = new Lobby("test2", Variant.LIMITED, 6);
 LobbyMap.set("test", lobbyTest);
 LobbyMap.set("test2", lobbyTest2);
 
@@ -80,15 +89,10 @@ io.use((socket, next) => {
   if (user) {
     let player = PlayerArr.filter((p) => p.uuid == user.uuid)[0];
 
-    // console.log(PlayerArr);
-
     if (player) {
       //doing something and replacing current record
       //number
       const index = PlayerArr.findIndex((p) => p.uuid === user.uuid);
-
-      // console.log("*&*&%&^%&%$&$%^$%*&", player);
-      // console.log("*&*&%&^%&%$&$%^$%*&", user);
 
       const playerUpdate = setUpPlayerRefresh(user, player, socket);
       PlayerArr[index] = playerUpdate;
@@ -98,12 +102,12 @@ io.use((socket, next) => {
 
       let newPlayer = new Player(user.username, user.uuid, socket.id, [
         socket.id,
+        "lobby",
       ]);
 
       // console.log("PLAYAERASR", newPlayer);
 
       PlayerArr.push(newPlayer);
-      // console.log(newPlayer);
     }
   } else {
     return false;
@@ -116,13 +120,12 @@ io.use((socket, next) => {
 });
 
 io.on("connection", (socket) => {
-  const lobbyArray = Array.from(LobbyMap.entries());
-
+  let lobbyArray = [];
   console.log(`User connected with socket ID: ${socket.id}`);
+  socket.join("lobby");
   activeSockets[socket.id] = socket;
-  PlayerArr.push(socket.id);
 
-  socket.emit("LOBBY_LIST", lobbyArray);
+  emitLobbyList();
 
   socket.on("CREATE_LOBBY", ({ userName, lobbyName }) => {
     // console.log("User creating lobby: Name:", lobbyName);
@@ -139,13 +142,14 @@ io.on("connection", (socket) => {
 
       // Notify EVERYONE of the updated lobby list SUBJECT TO CHANGE
       const updatedList = Array.from(LobbyMap.entries());
-      io.emit("LOBBY_LIST", updatedList);
+      io.to("lobby").emit("LOBBY_LIST", updatedList);
     }
   });
 
   socket.on("JOIN_LOBBY", ({ userName, lobbyName }) => {
     console.log("User joining lobby:", userName, lobbyName);
     socket.join(`ROOM_${lobbyName}`);
+    socket.leave("lobby");
     // console.log(socket.rooms);
 
     socket.emit("JOINED_LOBBY", lobbyName);
@@ -156,14 +160,10 @@ io.on("connection", (socket) => {
     console.log("&*&!@&^!*&^$SOMEONE IS LEAVING");
   });
 
-  // socket.on("JOINED_LOBBY", ({ lobbyName }) => {
-  //   console.log("USER " + socket.id + "JOINED LOBBY: " + lobbyName);
-  // });
-
   socket.on("TESTING", () => {
     console.log(`Socket ${socket.id} is accessing testing event`);
-    console.log(`Rooms:`);
-    console.log(socket.rooms);
+    // console.log(`Rooms:`);
+    console.log(PlayerArr);
   });
 
   socket.on("ROOM_HELLO", ({ data }) => {
@@ -173,8 +173,19 @@ io.on("connection", (socket) => {
     io.to(`ROOM_${data}`).emit("ROOM_REFRESH", { playerList: players });
   });
 
+  socket.on("GO_BACK", () => {
+    emitLobbyList();
+  });
+
+  socket.on("LEFT_LOBBY", ({ userName, lobby }) => {
+    console.log(`User ${userName} left lobby, ${lobby}`);
+    userLeftLobby(socket.id, lobby);
+    socket.leave(`ROOM_${lobby}`);
+    emitLobbyList();
+  });
+
   socket.on("disconnect", (reason) => {
-    // console.log(`User ${socket.id} left: ${reason}`);
+    console.log(`User ${socket.id} left: ${reason}`);
     // PlayerArr = PlayerArr.filter((user) => user.socket != socket.id);
     // console.log("DELETING USER");
     // console.log(PlayerArr);
@@ -182,10 +193,8 @@ io.on("connection", (socket) => {
 
   //   // Get the room object
   // const room = io.sockets.adapter.rooms.get('lobby_123');
-
   // // Check if the room exists and get the count
   // const count = room ? room.size : 0;
-
   // console.log(`There are ${count} users in the room.`);
 
   function createLobby(lobbyName, player) {
@@ -196,8 +205,14 @@ io.on("connection", (socket) => {
 
     LobbyMap.set(lobbyName, lobby);
     // console.log(LobbyMap);
-    io.emit("LOBBY_LIST", lobbyArray);
+    emitLobbyList();
     return lobby;
+  }
+
+  function emitLobbyList() {
+    const updatedList = Array.from(LobbyMap.entries());
+    // io.to("lobby").emit("LOBBY_LIST", updatedList); .to("lobby") generates problems
+    io.emit("LOBBY_LIST", updatedList);
   }
 
   function fetchConnectedPeopleArray(lobbyName) {
@@ -205,8 +220,46 @@ io.on("connection", (socket) => {
 
     const fetchedLobby = LobbyMap.get(lobbyName);
 
-    // console.log(fetchedLobby);
-    return fetchedLobby.players;
+    console.log(fetchedLobby);
+    const usernames = fetchedLobby.players.map((player) => player.username);
+    return usernames;
+  }
+
+  function userLeftLobby(socketId, lobbyName) {
+    // 1. Guard: Check if lobby exists in the map
+    const lobby = LobbyMap.get(lobbyName);
+    if (!lobby) {
+      console.log("Lobby already deleted or does not exist, skipping.");
+      return;
+    }
+
+    console.log("Processing leave logic for:", socketId);
+
+    const index = PlayerArr.findIndex((p) => p.socket == socket.id);
+    let player = PlayerArr.filter((p) => p.socket == socket.id)[0];
+
+    // 2. Check if the player is actually in this lobby before filtering
+    const playerIndex = lobby.players.findIndex((p) => p.uuid === player.uuid);
+    if (playerIndex === -1) {
+      console.log("Player not found in this lobby, skipping.");
+      return;
+    }
+
+    player.rooms = player.rooms.filter((r) => r != `ROOM_${lobbyName}`);
+    player.rooms.push('lobby')
+    PlayerArr[index] = player;
+
+    // 3. Proceed with the logic
+    lobby.players.splice(playerIndex, 1);
+    const usernames = lobby.players.map((player) => player.username);
+    if (lobby.players.length > 0) {
+      LobbyMap.set(lobbyName, lobby);
+      io.to(`ROOM_${lobbyName}`).emit("ROOM_REFRESH", {
+        playerList: usernames,
+      });
+    } else {
+      LobbyMap.delete(lobbyName);
+    }
   }
 });
 
@@ -232,6 +285,8 @@ app.use(cors(corsOptions)); // Apply it
 //establishing initial connection
 app.post("/api/token", (req, res) => {
   let data = req.body;
+  // console.log(data);
+
   // console.log(data.uuid);
 
   const tokenString = `${data.uuid}TOKENSTRING${data.username}`;
@@ -291,9 +346,10 @@ function setUpPlayerRefresh(refreshData, player, socket) {
   if (roomValue != null) {
     // console.log(roomValue);
     socket.join(roomValue);
+    socket.leave("lobby");
     player.rooms = [roomValue, socket.id];
   } else {
-    player.rooms = [socket.id];
+    player.rooms = [socket.id, "lobby"];
   }
 
   player.socket = socket.id;
@@ -309,14 +365,16 @@ function setCurrentRooms(socket, lobbyName, userName) {
   const index = PlayerArr.findIndex((p) => p.socket == socket.id);
   let player = PlayerArr.filter((p) => p.socket == socket.id)[0];
   player.rooms = Array.from(socket.rooms);
-  // console.log(player.rooms);
+  player.rooms = player.rooms.filter((r) => r != "lobby");
   PlayerArr[index] = player;
 
   const lobby = LobbyMap.get(lobbyName);
   // console.log(LobbyMap);
   // let arr = lobby.players
 
-  lobby.players.push(userName);
+  const playerGame = new PlayerGame(userName, player.uuid);
+
+  lobby.players.push(playerGame);
   LobbyMap.set(lobbyName, lobby);
 
   console.log(lobby.players);
