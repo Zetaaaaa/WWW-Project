@@ -22,7 +22,7 @@ function InitialConnectionWrapper() {
     const [check, setCheck] = useState(false)
     const [userName, setUsername] = useState<string>('user')
 
-        console.log(userName);
+   
 
     async function init() {
         console.log(userName);
@@ -82,7 +82,7 @@ function InitialConnectionWrapper() {
                 </DialogContent>
             </Dialog>
             {check != false ?
-                <Main></Main>
+                <Main userName={userName}></Main>
                 : <p>Awaiting initial configuration</p>}
         </>
     )
