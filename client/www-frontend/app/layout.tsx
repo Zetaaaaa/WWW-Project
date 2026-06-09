@@ -13,7 +13,7 @@ export default function MainLayout({
 }) {
     return (
         <html lang="en" className={cn("font-sans", geist.variable)}>
-            <body className="h-screen dark flex flex-col" >
+            <body className="h-screen dark flex flex-col">
                 <main className="flex-1">{children}</main>
             </body>
         </html>
