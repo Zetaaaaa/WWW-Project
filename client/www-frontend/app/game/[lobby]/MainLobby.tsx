@@ -13,7 +13,7 @@ function MainLobby() {
     const [lobbyName, setlobbyName] = useState(null);
     const [userName, setUsername] = useState<string>('user')
     const [playerList, setPlayerlist] = useState<string[] | null>(null)
-   
+   const router = useRouter();
 
     const params = useParams<{ tag: string; item: string }>()
 
