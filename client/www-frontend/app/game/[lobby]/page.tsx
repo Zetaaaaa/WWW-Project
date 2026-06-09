@@ -6,11 +6,12 @@ import { getSocket } from "../../lib/socket";
 import { getUsername } from '../../actions';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation'
+import InitialLobbyWrapper from './InitialLobbyWrapper';
 
 
 function Lobby({ params }: { params: Promise<{ lobby: string }> }) {
     const socketRef = useRef<any | Socket>(null);
-    const [lobbyName, setlobbyName] = useState(null);
+  
     const [userName, setUsername] = useState<string>('user')
     const [playerList, setPlayerlist] = useState<string[] | null>(null)
     const router = useRouter();
@@ -30,7 +31,7 @@ function Lobby({ params }: { params: Promise<{ lobby: string }> }) {
             const socket = getSocket(token.value);
             socketRef.current = socket
             setUsername(username)
-            setlobbyName(lobby)
+        
 
 
             // Socket.IO uses .on() for event listeners
@@ -83,32 +84,8 @@ function Lobby({ params }: { params: Promise<{ lobby: string }> }) {
 
 
     return (
-        <div className='w-full h-full flex flex-col items-center my-20 gap-10'>
-            {lobbyName != null ?
-                <h1>Current Lobby ID: {lobbyName}, UserName {userName}</h1>
-                :
-                null}
-
-            <div>
-                <Button onClick={() => {
-                    console.log(playerList);
-
-                    socketRef.current?.emit('TESTING');
-                }}>test fetch</Button>
-                <Button onClick={() => router.back()}>quit lobby</Button>
-            </div>
-
-            <div>
-                {playerList != null ?
-                    <>
-                        <p>Users in the lobby</p>
-                        {playerList?.map((player, index) => { return <p key={index}>---- {player}</p> })}
-                    </>
-                    : null}
-            </div>
-
-
-
+        <div>
+            <InitialLobbyWrapper></InitialLobbyWrapper>
         </div>
     )
 }

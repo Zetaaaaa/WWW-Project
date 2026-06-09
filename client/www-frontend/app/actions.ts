@@ -25,7 +25,7 @@ export async function getToken() {
   return cookieStore.get("token");
 }
 
-export async function getUsername(token:string) {
+export async function getUsername(token: string) {
   const response = await fetch("http://localhost:3001/api/token/username", {
     method: "POST",
     headers: {
@@ -35,4 +35,20 @@ export async function getUsername(token:string) {
   });
   const result = await response.text();
   return result;
+}
+
+export async function checkAccess(token: string, lobbyName: string) {
+  console.log("ASDASUDASY*GD*AGS");
+
+  const response = await fetch("http://localhost:3001/api/route/checkAccess", {
+    method: "POST",
+    headers: {
+      "Content-Type": "Application/json",
+      Authorization: `Bearer ${token?.value}`,
+    },
+    body: JSON.stringify({ route: lobbyName }),
+  });
+  
+  const result = await response.text();
+  return result === "true"; // Returns actual boolean true/false
 }

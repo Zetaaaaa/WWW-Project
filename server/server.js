@@ -248,7 +248,7 @@ io.on("connection", (socket) => {
     }
 
     player.rooms = player.rooms.filter((r) => r != `ROOM_${lobbyName}`);
-    player.rooms.push('lobby')
+    player.rooms.push("lobby");
     PlayerArr[index] = player;
 
     // 3. Proceed with the logic
@@ -305,6 +305,17 @@ app.post("/api/token/username", (req, res) => {
   const tokenData = getTokenData(token);
 
   res.send(tokenData.username);
+});
+
+app.post("/api/route/checkAccess", (req, res) => {
+  const authHeader = req.headers["authorization"];
+  let token = authHeader && authHeader.split(" ")[1];
+  const tokenData = getTokenData(token);
+
+  const result = checkRouteAccess(tokenData, req.body.route);
+  console.log(result);
+
+  res.send(result);
 });
 
 app.listen(port, () => {
@@ -372,7 +383,7 @@ function setCurrentRooms(socket, lobbyName, userName) {
 
   const lobby = LobbyMap.get(lobbyName);
   console.log("LOBBYY CURRENT ROOMS");
-  
+
   console.log(LobbyMap);
   // let arr = lobby.players
 
@@ -382,4 +393,25 @@ function setCurrentRooms(socket, lobbyName, userName) {
   LobbyMap.set(lobbyName, lobby);
 
   console.log(lobby.players);
+}
+
+function checkRouteAccess(tokenData, route) {
+  // console.log("ASDAS");
+  // console.log(PlayerArr);
+  console.log(route);
+
+  // Use .find() to get the specific object, not an array of objects
+  const player = PlayerArr.find((p) => p.uuid === tokenData.uuid);
+  console.log(player);
+
+  // Add a safety check in case the player isn't found
+  if (player) {
+    console.log("ROOMY", `ROOM_${route}`);
+    console.log(player.rooms.includes(`ROOM_${route}`));
+
+    const allow = player.rooms.includes(`ROOM_${route}`);
+    return allow;
+  } else {
+    return false;
+  }
 }
