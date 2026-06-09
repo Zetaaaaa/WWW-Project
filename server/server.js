@@ -163,12 +163,14 @@ io.on("connection", (socket) => {
   socket.on("TESTING", () => {
     console.log(`Socket ${socket.id} is accessing testing event`);
     // console.log(`Rooms:`);
-    console.log(PlayerArr);
+    // console.log(PlayerArr);
   });
 
   socket.on("ROOM_HELLO", ({ data }) => {
     console.log(`User ${socket.id} in the room - letting know others`);
     console.log(`ROOM_${data}`);
+    // console.log("DATA");
+    // console.log(data);
     const players = fetchConnectedPeopleArray(data);
     io.to(`ROOM_${data}`).emit("ROOM_REFRESH", { playerList: players });
   });
@@ -220,7 +222,7 @@ io.on("connection", (socket) => {
 
     const fetchedLobby = LobbyMap.get(lobbyName);
 
-    console.log(fetchedLobby);
+    // console.log(fetchedLobby);
     const usernames = fetchedLobby.players.map((player) => player.username);
     return usernames;
   }
@@ -369,7 +371,9 @@ function setCurrentRooms(socket, lobbyName, userName) {
   PlayerArr[index] = player;
 
   const lobby = LobbyMap.get(lobbyName);
-  // console.log(LobbyMap);
+  console.log("LOBBYY CURRENT ROOMS");
+  
+  console.log(LobbyMap);
   // let arr = lobby.players
 
   const playerGame = new PlayerGame(userName, player.uuid);

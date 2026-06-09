@@ -1,7 +1,7 @@
 'use client'
 import React, { useEffect, useState } from 'react'
 import Main from "./Components/Main";
-import { ensureUuidCookie, setTokenCookie } from './actions'; // Import your action
+import { ensureUuidCookie, setTokenCookie,getUsername } from './actions'; // Import your action
 
 import {
     Dialog,
@@ -35,6 +35,9 @@ function InitialConnectionWrapper() {
             // Correct way to check if tokenCheck is null, undefined, or falsey
             if (tokenCheck) {
                 // console.log("Token is in place");
+                // if the user exists don't use default state username
+                const username = await getUsername(tokenCheck)
+                setUsername(username)
                 setUserAuth(true)
             }
             else {
