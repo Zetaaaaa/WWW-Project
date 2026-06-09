@@ -48,7 +48,7 @@ function Main({ userName }: MainProps) {
         // 2. Access the socket via .current
         if (!socketRef.current) return;
 
-        console.log("Attempting to join:", lobbyName);
+        // console.log("Attempting to join:", lobbyName);
         socketRef.current.emit("JOIN_LOBBY", {
             userName: userName,
             lobbyName: lobbyName,
@@ -65,19 +65,43 @@ function Main({ userName }: MainProps) {
         });
     }
 
+    const handleLobbyCreated = (data) => {
+        console.log("LOBBY_CREATED received:", data);
+        if (!data || !data.lobby) {
+            console.error("Error: Server did not return a valid lobby object.");
+            return;
+        }
+        const name = data.lobby.name || data.lobby;
+        // console.log("Attempting to join:", name);
+        joinLobby(name); // Upewnij się, że ta funkcja jest dostępna w zasięgu
+    };
+
+    const handleLobbyList = (lobbyData) => {
+        // console.log("GOT NEW LOBBY LIST:", lobbyData);
+        setLobbyList(lobbyData);
+    };
+
+    const handleJoinedLobby = (data) => {
+        console.log("JOINED LOBBY", data);
+        router.push("game/" + data);
+    };
+
+    const handleErrorResponse = (content) => {
+        console.error("ERROR", content);
+    };
+
+
     useEffect(() => {
+        let isMounted = true; // Cleanup flag
 
         async function init() {
-            console.log("init");
-
             const token = await getToken();
-            if (!token) return;
+            if (!token || !isMounted) return; // Stop if component unmounted
 
-            // This will now always return the same connection
             const socket = getSocket(token.value);
             socketRef.current = socket;
 
-            if (socket.connected) {
+             if (socket.connected) {
                 console.log("Already connected! Re-using session:", socket.id);
                 // Trigger logic for when you just "go back" to the page
                 socket.emit("GO_BACK");
@@ -95,52 +119,33 @@ function Main({ userName }: MainProps) {
                 console.log('Disconnected from Socket.IO server');
             });
 
-            // Listen for custom events sent from your server
-            // Note: The server must be using socket.emit('event_name', data)
-            const handleLobbyCreated = (data) => {
-                console.log("LOBBY_CREATED received:", data);
-                if (!data || !data.lobby) {
-                    console.error("Error: Server did not return a valid lobby object.");
-                    return;
-                }
-                const name = data.lobby.name || data.lobby;
-                console.log("Attempting to join:", name);
-                joinLobby(name); // Upewnij się, że ta funkcja jest dostępna w zasięgu
-            };
+            // Ensure we don't attach multiple times if init is called twice
+            // Remove existing listeners before adding new ones
+            socketRef.current.off('LOBBY_CREATED');
+            socketRef.current.off('LOBBY_LIST');
+            socketRef.current.off('JOINED_LOBBY');
+            socketRef.current.off('errorResponse');
 
-            const handleLobbyList = (lobbyData) => {
-                console.log("GOT NEW LOBBY LIST:", lobbyData);
-                setLobbyList(lobbyData);
-            };
 
-            const handleJoinedLobby = (data) => {
-                console.log("JOINED LOBBY", data);
-                router.push("game/" + data);
-            };
-
-            const handleErrorResponse = (content) => {
-                console.error("ERROR", content);
-            };
-
-            // Store in state so you can use it elsewhere in your component
-            // setSocket(socket);
-
-            socket.on('LOBBY_CREATED', handleLobbyCreated);
-            socket.on('LOBBY_LIST', handleLobbyList);
-            socket.on('JOINED_LOBBY', handleJoinedLobby);
-            socket.on('errorResponse', handleErrorResponse);
-
-            // Cleanup on unmount
-            return () => {
-                socket.off('LOBBY_LIST', handleLobbyList);
-                // socket.off('JOINED_LOBBY', handleJoinedLobby);
-                // socket.off('errorResponse', handleError);
-                // socket.off('LOBBY_CREATED', handleLobbyCreated);
-                // socket.disconnect();
-            };
+            socketRef.current.on('LOBBY_CREATED', handleLobbyCreated);
+            socketRef.current.on('LOBBY_LIST', handleLobbyList);
+            socketRef.current.on('JOINED_LOBBY', handleJoinedLobby);
+            socketRef.current.on('errorResponse', handleErrorResponse);
         }
+
         init();
-    }, []);
+
+        return () => {
+            isMounted = false;
+            // Use optional chaining (?.) so it doesn't crash if current is null
+            socketRef.current?.off('LOBBY_CREATED', handleLobbyCreated);
+            socketRef.current?.off('LOBBY_LIST', handleLobbyList);
+            socketRef.current?.off('JOINED_LOBBY', handleJoinedLobby);
+            socketRef.current?.off('errorResponse', handleErrorResponse);
+        };
+    }, []); // Keep dependency array empty
+
+
 
 
     return (
@@ -175,10 +180,10 @@ function Main({ userName }: MainProps) {
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>
-                      <Button onClick={() => {
+                    <Button onClick={() => {
 
-                    socketRef.current?.emit('TESTING');
-                }}>test fetch</Button>
+                        socketRef.current?.emit('TESTING');
+                    }}>test fetch</Button>
                     <Button onClick={() => console.log("im a dud")} variant={"outline"}>Settings</Button>
                 </div>
             </div>
