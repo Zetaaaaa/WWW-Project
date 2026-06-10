@@ -100,8 +100,15 @@ io.use((socket, next) => {
     if (player) {
       //doing something and replacing current record
       //number
-      const index = PlayerArr.findIndex((p) => p.uuid === user.uuid);
+      const roomsWithRoom = player.rooms.filter((r) => r.includes("ROOM"));
+      // Print those specific names
+      roomsWithRoom.forEach((roomName) => {
+        console.log("ASDASDA");
+        userLeftLobby(player.socket, roomName.split("_")[1]);
+      });
 
+      const index = PlayerArr.findIndex((p) => p.uuid === user.uuid);
+      player.rooms = player.rooms.filter((r) => !r.includes("ROOM"));
       const playerUpdate = setUpPlayerRefresh(user, player, socket);
       PlayerArr[index] = playerUpdate;
     } else {
@@ -181,8 +188,8 @@ io.on("connection", (socket) => {
     const players = fetchConnectedPeopleArray(data);
     if (!players) {
       console.log("LOBBY NOT FOUND");
-      
-      socket.emit("NOT_FOUND")
+
+      socket.emit("NOT_FOUND");
     } else {
       io.to(`ROOM_${data}`).emit("ROOM_REFRESH", { playerList: players });
     }
@@ -243,44 +250,44 @@ io.on("connection", (socket) => {
       return usernames;
     }
   }
-
-  function userLeftLobby(socketId, lobbyName) {
-    // 1. Guard: Check if lobby exists in the map
-    const lobby = LobbyMap.get(lobbyName);
-    if (!lobby) {
-      console.log("Lobby already deleted or does not exist, skipping.");
-      return;
-    }
-
-    console.log("Processing leave logic for:", socketId);
-
-    const index = PlayerArr.findIndex((p) => p.socket == socket.id);
-    let player = PlayerArr.filter((p) => p.socket == socket.id)[0];
-
-    // 2. Check if the player is actually in this lobby before filtering
-    const playerIndex = lobby.players.findIndex((p) => p.uuid === player.uuid);
-    if (playerIndex === -1) {
-      console.log("Player not found in this lobby, skipping.");
-      return;
-    }
-
-    player.rooms = player.rooms.filter((r) => r != `ROOM_${lobbyName}`);
-    player.rooms.push("lobby");
-    PlayerArr[index] = player;
-
-    // 3. Proceed with the logic
-    lobby.players.splice(playerIndex, 1);
-    const usernames = lobby.players.map((player) => player.username);
-    if (lobby.players.length > 0) {
-      LobbyMap.set(lobbyName, lobby);
-      io.to(`ROOM_${lobbyName}`).emit("ROOM_REFRESH", {
-        playerList: usernames,
-      });
-    } else {
-      LobbyMap.delete(lobbyName);
-    }
-  }
 });
+
+function userLeftLobby(socketId, lobbyName) {
+  // 1. Guard: Check if lobby exists in the map
+  const lobby = LobbyMap.get(lobbyName);
+  if (!lobby) {
+    console.log("Lobby already deleted or does not exist, skipping.");
+    return;
+  }
+
+  // console.log("Processing leave logic for:", socketId);
+
+  const index = PlayerArr.findIndex((p) => p.socket == socketId);
+  let player = PlayerArr.filter((p) => p.socket == socketId)[0];
+
+  // 2. Check if the player is actually in this lobby before filtering
+  const playerIndex = lobby.players.findIndex((p) => p.uuid === player.uuid);
+  if (playerIndex === -1) {
+    console.log("Player not found in this lobby, skipping.");
+    return;
+  }
+
+  player.rooms = player.rooms.filter((r) => r != `ROOM_${lobbyName}`);
+  player.rooms.push("lobby");
+  PlayerArr[index] = player;
+
+  // 3. Proceed with the logic
+  lobby.players.splice(playerIndex, 1);
+  const usernames = lobby.players.map((player) => player.username);
+  if (lobby.players.length > 0) {
+    LobbyMap.set(lobbyName, lobby);
+    io.to(`ROOM_${lobbyName}`).emit("ROOM_REFRESH", {
+      playerList: usernames,
+    });
+  } else {
+    LobbyMap.delete(lobbyName);
+  }
+}
 
 import express from "express";
 import cors from "cors";
