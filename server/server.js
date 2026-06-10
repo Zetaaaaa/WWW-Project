@@ -25,7 +25,7 @@ const Variant = Object.freeze({
 class Lobby {
   constructor(name, variant, count, players, status) {
     this.name = name;
-    this.code = randcode()
+    this.code = randcode();
     this.variant = variant;
     this.count = count;
     this.players = [];
@@ -95,27 +95,15 @@ io.use((socket, next) => {
     let player = PlayerArr.filter((p) => p.uuid == user.uuid)[0];
 
     if (player) {
-      //doing something and replacing current record
-      //number
-
-      //DO POPRAWKI TUTAJ $%%%%%%%%%!9&23(&@!63^!@*63*@!5863%@!^537%!@68357^!@%735!2653*152831)
-      // const roomsWithRoom = player.rooms.filter((r) => r.includes("ROOM"));
-      // // Print those specific names
-      // roomsWithRoom.forEach((roomName) => {
-        
-      //   userLeftLobby(player.socket,roomName.split("_")[1]);
-      // });
-
       const index = PlayerArr.findIndex((p) => p.uuid === user.uuid);
       // player.rooms = player.rooms.filter((r) => !r.includes("ROOM"));
-      
+
       const playerUpdate = setUpPlayerRefresh(user, player, socket);
       PlayerArr[index] = playerUpdate;
     } else {
-
       let newPlayer = new Player(user.username, user.uuid, socket.id, [
         socket.id,
-        "lobby1",
+        "lobby",
       ]);
 
       PlayerArr.push(newPlayer);
@@ -138,7 +126,6 @@ io.on("connection", (socket) => {
   emitLobbyList();
 
   socket.on("CREATE_LOBBY", ({ userName, lobbyName }) => {
-
     const lobby = createLobby(lobbyName);
 
     if (!lobby) {
@@ -156,12 +143,19 @@ io.on("connection", (socket) => {
   });
 
   socket.on("JOIN_LOBBY", ({ userName, lobbyCode }) => {
-    console.log("User joining lobby:", userName, lobbyCode );
+    const index = PlayerArr.findIndex((p) => p.socket == socket.id);
+    let player = PlayerArr.filter((p) => p.socket == socket.id)[0];
+
+    //guardrail if player leaves room via url
+    const roomsWithRoom = player.rooms.filter((r) => r.includes("ROOM"));
+    // Print those specific names
+    roomsWithRoom.forEach((roomName) => {
+      userLeftLobby(player.socket, roomName.split("_")[1]);
+    });
+
+    console.log("User joining lobby:", userName, lobbyCode);
     socket.join(`ROOM_${lobbyCode}`);
     socket.leave("lobby");
-    // console.log(socket.rooms);
-    
-
     socket.emit("JOINED_LOBBY", lobbyCode);
     setCurrentRooms(socket, lobbyCode, userName);
   });
@@ -178,7 +172,6 @@ io.on("connection", (socket) => {
 
   socket.on("ROOM_HELLO", ({ data }) => {
     console.log(`User ${socket.id} in the room - letting know others`);
-    console.log(`ROOM_${data}`);
 
     const players = fetchConnectedPeopleArray(data);
     if (!players) {
@@ -194,9 +187,9 @@ io.on("connection", (socket) => {
     emitLobbyList();
   });
   //lobbyDepreciated
-  socket.on("LEFT_LOBBY", ({ userName, lobby,}) => {
+  socket.on("LEFT_LOBBY", ({ userName, lobby }) => {
     console.log(`User ${userName} left lobby, ${lobby}`);
-    userLeftLobby(socket.id,lobby);
+    userLeftLobby(socket.id, lobby);
     socket.leave(`ROOM_${lobby}`);
     emitLobbyList();
   });
@@ -230,7 +223,6 @@ io.on("connection", (socket) => {
   }
 
   function fetchConnectedPeopleArray(lobbyCode) {
-
     const fetchedLobby = LobbyMap.get(`ROOM_${lobbyCode}`);
 
     if (!fetchedLobby) {
@@ -243,16 +235,14 @@ io.on("connection", (socket) => {
   }
 });
 
-function userLeftLobby(socketId,lobbyCode) {
+function userLeftLobby(socketId, lobbyCode) {
   // 1. Guard: Check if lobby exists in the map
-  
+
   const lobby = LobbyMap.get(`ROOM_${lobbyCode}`);
   if (!lobby) {
     console.log("Lobby already deleted or does not exist, skipping.");
     return;
   }
-
-  console.log("Processing leave logic for:", socketId);
 
   const index = PlayerArr.findIndex((p) => p.socket == socketId);
   let player = PlayerArr.filter((p) => p.socket == socketId)[0];
@@ -263,8 +253,7 @@ function userLeftLobby(socketId,lobbyCode) {
     console.log("Player not found in this lobby, skipping.");
     return;
   }
-  console.log("#2 FILTER");
-  
+
   player.rooms = player.rooms.filter((r) => r != `ROOM_${lobbyCode}`);
   player.rooms.push("lobby");
   PlayerArr[index] = player;
@@ -345,19 +334,18 @@ function getTokenData(token) {
   const uuid = raw.split("TOKENSTRING")[0];
   const userName = raw.split("TOKENSTRING")[1];
 
-
   return { username: userName, uuid: uuid };
 }
 
 function setUpPlayerRefresh(refreshData, player, socket) {
   console.log("user exists asign token and rooms");
+  console.log(refreshData);
+  console.log(player);
 
+  console.log(player.rooms);
 
-  
-  
   player.username !== refreshData.name ? refreshData.name : player.username;
   const roomValue = player.rooms.find((room) => {
-    console.log("ROOOOOOOOOM", room);
     if (room.startsWith("ROOM_")) {
       return true; // <--- This tells find() "I found it!"
     }
@@ -369,7 +357,6 @@ function setUpPlayerRefresh(refreshData, player, socket) {
     socket.leave("lobby");
     player.rooms = [roomValue, socket.id];
   } else {
-    
     player.rooms = [socket.id, "lobby"];
   }
 
@@ -379,46 +366,29 @@ function setUpPlayerRefresh(refreshData, player, socket) {
 }
 
 function setCurrentRooms(socket, lobbyCode, userName) {
-  
   const index = PlayerArr.findIndex((p) => p.socket == socket.id);
   let player = PlayerArr.filter((p) => p.socket == socket.id)[0];
   player.rooms = Array.from(socket.rooms);
   player.rooms = player.rooms.filter((r) => r != "lobby");
-  
-  PlayerArr[index] = player;
-  console.log("HABULA");
-  
-  // console.log(`ROOM_${lobbyCode}`);
-  
-  const lobby = LobbyMap.get(`ROOM_${lobbyCode}`);
-  console.log("LOBBYY CURRENT ROOMS");
 
-  // console.log(LobbyMap);
+  PlayerArr[index] = player;
+
+  const lobby = LobbyMap.get(`ROOM_${lobbyCode}`);
+
   // let arr = lobby.players
 
   const playerGame = new PlayerGame(userName, player.uuid);
 
   lobby.players.push(playerGame);
   LobbyMap.set(`ROOM_${lobbyCode}`, lobby);
-
-  // console.log(lobby.players);
 }
 
 function checkRouteAccess(tokenData, code) {
-  // console.log(PlayerArr);
-  console.log(code);
-
   // Use .find() to get the specific object, not an array of objects
   const player = PlayerArr.find((p) => p.uuid === tokenData.uuid);
-  console.log(player);
 
   // Add a safety check in case the player isn't found
   if (player) {
-    console.log("ROOMY", `ROOM_${code}`);
-    console.log(player);
-    
-    console.log(player.rooms.includes(`ROOM_${code}`));
-
     const allow = player.rooms.includes(`ROOM_${code}`);
     return allow;
   } else {
@@ -426,13 +396,12 @@ function checkRouteAccess(tokenData, code) {
   }
 }
 
-
 function randcode(length = 6) {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   const randomValues = new Uint32Array(length);
   crypto.getRandomValues(randomValues);
-  
-  let result = '';
+
+  let result = "";
   for (let i = 0; i < length; i++) {
     result += chars[randomValues[i] % chars.length];
   }
