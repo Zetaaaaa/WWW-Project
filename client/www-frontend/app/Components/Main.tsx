@@ -43,14 +43,14 @@ function Main({ userName }: MainProps) {
     const router = useRouter();
 
 
-    function joinLobby(lobbyName: string) {
+    function joinLobby(lobbyCode: string) {
         // 2. Access the socket via .current
         if (!socketRef.current) return;
 
         // console.log("Attempting to join:", lobbyName);
         socketRef.current.emit("JOIN_LOBBY", {
             userName: userName,
-            lobbyName: lobbyName,
+            lobbyCode: lobbyCode,
         });
     }
 
@@ -70,9 +70,11 @@ function Main({ userName }: MainProps) {
             console.error("Error: Server did not return a valid lobby object.");
             return;
         }
-        const name = data.lobby.name || data.lobby;
+        console.log(data);
+        
+        const code = data.lobby.code;
         // console.log("Attempting to join:", name);
-        joinLobby(name); // Upewnij się, że ta funkcja jest dostępna w zasięgu
+        joinLobby(code); // Upewnij się, że ta funkcja jest dostępna w zasięgu
     };
 
     const handleLobbyList = (lobbyData) => {
@@ -209,7 +211,7 @@ function Main({ userName }: MainProps) {
                                 </span>
                             </TableCell>
                             <TableCell className="text-right">
-                                <Button size="sm" onClick={() => joinLobby(lobby.name)}>Join</Button>
+                                <Button size="sm" onClick={() => joinLobby(lobby.code)}>Join</Button>
                             </TableCell>
                         </TableRow>
                     ))

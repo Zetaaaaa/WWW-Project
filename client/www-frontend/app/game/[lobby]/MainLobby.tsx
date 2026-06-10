@@ -51,7 +51,7 @@ function MainLobby() {
                 setPlayerlist(playerList)
             })
 
-            socket.currentRef.on("NOT_FOUND",()=>{
+            socketRef.current.on("NOT_FOUND",()=>{
                 router.replace("/404")
             })
 
@@ -63,10 +63,12 @@ function MainLobby() {
             socketRef.current.emit("ROOM_HELLO", { data: lobby });
 
 
-            // // console.log("LOBBY", lobby);
+           
 
 
             const handlePopState = () => {
+                console.log(lobby);
+                
                 socketRef.current.emit("LEFT_LOBBY", ({ username, lobby }))
             };
             window.addEventListener('popstate', handlePopState);

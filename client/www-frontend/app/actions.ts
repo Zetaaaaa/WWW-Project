@@ -37,7 +37,7 @@ export async function getUsername(token: string) {
   return result;
 }
 
-export async function checkAccess(token: string, lobbyName: string) {
+export async function checkAccess(token: string, lobbyCode: string) {
   console.log("ASDASUDASY*GD*AGS");
 
   const response = await fetch("http://localhost:3001/api/route/checkAccess", {
@@ -46,7 +46,7 @@ export async function checkAccess(token: string, lobbyName: string) {
       "Content-Type": "Application/json",
       Authorization: `Bearer ${token?.value}`,
     },
-    body: JSON.stringify({ route: lobbyName }),
+    body: JSON.stringify({ code: lobbyCode }),
   });
   
   const result = await response.text();

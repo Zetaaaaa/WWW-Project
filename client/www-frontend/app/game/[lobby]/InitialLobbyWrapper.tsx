@@ -9,7 +9,6 @@ import { useRouter } from 'next/navigation'
 
 function InitialLobbyWrapper() {
     const [isAllowed, setAllowed] = useState<boolean>(true)
-    const [lobbyName, setlobbyName] = useState<string | null>(null);
     const pathname = usePathname()
     const params = useParams<{ tag: string; item: string }>()
     const router = useRouter();
