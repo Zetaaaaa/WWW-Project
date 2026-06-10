@@ -9,6 +9,13 @@ const Status = Object.freeze({
   COMPLETED: "COMPLETED",
 });
 
+const LobbyStatus = Object.freeze({
+  AWAITING_PLAYERS: "Awaiting Players",
+  READY: "Ready to start",
+  ONGOING: "Game in progress",
+  END: "Game has ended"
+})
+
 const Variant = Object.freeze({
   NORMAL: "normal",
   RANDOMIZER: "randomizer",
@@ -16,11 +23,12 @@ const Variant = Object.freeze({
 });
 
 class Lobby {
-  constructor(name, variant, count, players) {
+  constructor(name, variant, count, players,status) {
     this.name = name;
     this.variant = variant;
     this.count = count;
     this.players = [];
+    this.status = LobbyStatus.AWAITING_PLAYERS
   }
 }
 
@@ -37,7 +45,7 @@ class PlayerGame {
   constructor(username, uuid, hand) {
     this.username = username;
     this.uuid = uuid;
-    this.hand = { c1: "XXX", c2: "XXX " };
+    this.hand = { c1: "XXX", c2: "XXX", c3:"XXX",c4: "XXX", c5:"xxx" };
   }
 }
 
@@ -104,7 +112,6 @@ io.use((socket, next) => {
         socket.id,
         "lobby",
       ]);
-
       // console.log("PLAYAERASR", newPlayer);
 
       PlayerArr.push(newPlayer);
