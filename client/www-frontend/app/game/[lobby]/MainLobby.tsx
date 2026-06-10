@@ -51,6 +51,10 @@ function MainLobby() {
                 setPlayerlist(playerList)
             })
 
+            socket.currentRef.on("NOT_FOUND",()=>{
+                router.replace("/404")
+            })
+
 
             socketRef.current.on('errorResponse', (content) => {
                 console.error("ERROR", content);
