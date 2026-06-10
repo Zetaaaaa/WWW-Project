@@ -75,30 +75,43 @@ function MainLobby() {
     }, []);
 
     return (
-        <div className='w-full h-full flex flex-col items-center my-20 gap-10'>
-            {lobbyName != null ?
-                <h1>Current Lobby ID: {lobbyName}, UserName {userName}</h1>
-                :
-                null}
+       <div className="w-full max-w-2xl mx-auto py-10 px-4">
+    {/* Lobby Header */}
+    <div className="text-center mb-10">
+        <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+            {lobbyName || "Lobby Loading..."}
+        </h1>
+        <p className="text-slate-500 mt-2">Connected as: <span className="font-mono bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded">{userName}</span></p>
+    </div>
 
-            <div>
-                <Button onClick={() => {
-                    console.log(playerList);
-
-                    socketRef.current?.emit('TESTING');
-                }}>test fetch</Button>
-                <Button onClick={() => router.back()}>quit lobby</Button>
-            </div>
-
-            <div>
-                {playerList != null ?
-                    <>
-                        <p>Users in the lobby</p>
-                        {playerList?.map((player, index) => { return <p key={index}>---- {player}</p> })}
-                    </>
-                    : null}
-            </div>
+    {/* Player Grid */}
+    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
+        <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-6">Active Players</h3>
+        
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {playerList?.map((player, index) => (
+                <div key={index} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
+                    <div className="w-8 h-8 rounded-full bg-sky-500 flex items-center justify-center text-white font-bold text-xs">
+                        {player[0].toUpperCase()}
+                    </div>
+                    <span className="font-medium text-slate-700 dark:text-slate-200">{player}</span>
+                </div>
+            ))}
         </div>
+       
+    </div>
+ 
+    {/* Footer Controls */}
+    <div className="flex justify-center gap-4 mt-10">
+        <Button onClick={()=>{startGame()}}>Start game</Button>
+        <Button variant="outline" onClick={() => socketRef.current?.emit('TESTING')}>
+            Refresh Status
+        </Button>
+        <Button variant="destructive" onClick={() => router.back()}>
+            Leave Lobby
+        </Button>
+    </div>
+</div>
     )
 }
 

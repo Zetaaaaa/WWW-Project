@@ -35,7 +35,6 @@ import { Label } from "@/components/ui/label"
 import { getSocket } from "../lib/socket";
 
 
-
 function Main({ userName }: MainProps) {
 
     const [lobbyName, setLobbyName] = useState<string | null>("Lobby")
@@ -147,19 +146,23 @@ function Main({ userName }: MainProps) {
 
 
 
-
     return (
-        // grid-cols-2
-        <div className="w-full h-full flex flex-col gap-1">
-            <div className="light:text-black flex-1/1 text-center dark:text-sky-100">
-                <p>Actions</p>
-                <div className="flex mt-3 flex-col row-span-2 col-span-2  items-center gap-5">
-                    {/* <Button onClick={() => test(ws)} variant={"outline"}>Test Request</Button> */}
-                    <Dialog>
-                        <DialogTrigger asChild>
-                            <Button variant="outline">Create Lobby</Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-sm">
+       <div className="w-full h-full p-6 flex flex-col gap-8 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
+    
+    {/* Header & Actions Area */}
+    <div className="flex justify-between items-center pb-6 border-b border-slate-200 dark:border-slate-800">
+        <div>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Game Lobbies</h2>
+            <p className="text-sm text-slate-500">Jump into a game or host your own.</p>
+        </div>
+        
+        <div className="flex gap-3">
+            <Button variant="ghost" onClick={() => console.log("Settings")}>Settings</Button>
+            <Dialog>
+                <DialogTrigger asChild>
+                    <Button className="bg-sky-600 hover:bg-sky-700">Create Lobby</Button>
+                </DialogTrigger>
+                 <DialogContent className="sm:max-w-sm">
                             <DialogHeader>
                                 <DialogTitle>Create Lobby</DialogTitle>
                                 <DialogDescription>
@@ -179,52 +182,48 @@ function Main({ userName }: MainProps) {
                                 <Button onClick={() => createLobby(lobbyName)} type="submit">Create</Button>
                             </DialogFooter>
                         </DialogContent>
-                    </Dialog>
-                    <Button onClick={() => {
-
-                        socketRef.current?.emit('TESTING');
-                    }}>test fetch</Button>
-                    <Button onClick={() => console.log("im a dud")} variant={"outline"}>Settings</Button>
-                </div>
-            </div>
-            {/* <div className="bg-blue-400 row-span-4">
-                <p>ResponseBox</p>
-            </div> */}
-            {/* <p className="text-black text-lg font-semibold">Table</p> */}
-            {/* albo to https://reactbits.dev/components/animated-list */}
-            <div className="w-full h-full flex flex-col items-center justify-center">
-                <div className="h-full w-4/5">
-                    <Table className="w-full">
-                        <TableCaption>Online lobbies: {lobbyList != null ? lobbyList.length : "00a"}</TableCaption>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Lobby Name</TableHead>
-                                <TableHead>Variant</TableHead>
-                                <TableHead>People Count</TableHead>
-                                <TableHead>Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {lobbyList != null &&
-                                lobbyList.map(([id, lobby]: [string, Lobby]) => {
-                                    return (
-                                        <TableRow key={id}>
-                                            <TableCell>{lobby.name}</TableCell>
-                                            <TableCell>{lobby.variant}</TableCell>
-                                            <TableCell>1/{lobby.count}</TableCell>
-                                            <TableCell>
-                                                {/* SUBJECT TO CHANGE DUE TO THE NATURE OF NAMES  ->> CODE JHD12S */}
-                                                <Button onClick={() => joinLobby(lobby.name)} type="submit">Join</Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    )
-                                })
-                            }
-                        </TableBody>
-                    </Table>
-                </div>
-            </div>
+            </Dialog>
         </div>
+    </div>
+
+    {/* Table Area */}
+    <div className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <Table>
+            <TableHeader className="bg-slate-100 dark:bg-slate-800">
+                <TableRow>
+                    <TableHead>Lobby Name</TableHead>
+                    <TableHead>Variant</TableHead>
+                    <TableHead>Players</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {lobbyList?.length > 0 ? (
+                    lobbyList.map(([id, lobby]) => (
+                        <TableRow key={id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <TableCell className="font-medium">{lobby.name}</TableCell>
+                            <TableCell>{lobby.variant}</TableCell>
+                            <TableCell>
+                                <span className="inline-flex dark items-center px-2 py-1 rounded-full bg-slate-600 text-xs font-medium">
+                                    1 / {lobby.count}
+                                </span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                                <Button size="sm" onClick={() => joinLobby(lobby.name)}>Join</Button>
+                            </TableCell>
+                        </TableRow>
+                    ))
+                ) : (
+                    <TableRow>
+                        <TableCell colSpan={4} className="h-24 text-center text-slate-500">
+                            No active lobbies found.
+                        </TableCell>
+                    </TableRow>
+                )}
+            </TableBody>
+        </Table>
+    </div>
+</div>
     )
 }
 

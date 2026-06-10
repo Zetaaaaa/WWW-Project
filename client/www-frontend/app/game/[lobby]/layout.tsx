@@ -8,7 +8,7 @@ export default function GameLayout({
 
     return (
         <div>
-            <p>main</p>
+            {/* <p>main</p> */}
             <main>{children}</main>
         </div>
     )
