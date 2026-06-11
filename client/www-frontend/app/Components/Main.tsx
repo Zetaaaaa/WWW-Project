@@ -39,6 +39,7 @@ function Main({ userName }: MainProps) {
 
     const [lobbyName, setLobbyName] = useState<string | null>("Lobby")
     const [lobbyList, setLobbyList] = useState(null)
+    const [lobbyCode, setLobbyCode] = useState(null)
     const socketRef = useRef<any>(null);
     const router = useRouter();
 
@@ -71,7 +72,7 @@ function Main({ userName }: MainProps) {
             return;
         }
         console.log(data);
-        
+
         const code = data.lobby.code;
         // console.log("Attempting to join:", name);
         joinLobby(code); // Upewnij się, że ta funkcja jest dostępna w zasięgu
@@ -91,7 +92,6 @@ function Main({ userName }: MainProps) {
         console.error("ERROR", content);
     };
 
-
     useEffect(() => {
         let isMounted = true; // Cleanup flag
 
@@ -102,7 +102,7 @@ function Main({ userName }: MainProps) {
             const socket = getSocket(token.value);
             socketRef.current = socket;
 
-             if (socket.connected) {
+            if (socket.connected) {
                 console.log("Already connected! Re-using session:", socket.id);
                 // Trigger logic for when you just "go back" to the page
                 socket.emit("GO_BACK");
@@ -149,22 +149,22 @@ function Main({ userName }: MainProps) {
 
 
     return (
-       <div className="w-full h-full p-6 flex flex-col gap-8 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
-    
-    {/* Header & Actions Area */}
-    <div className="flex justify-between items-center pb-6 border-b border-slate-200 dark:border-slate-800">
-        <div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Game Lobbies</h2>
-            <p className="text-sm text-slate-500">Jump into a game or host your own.</p>
-        </div>
-        
-        <div className="flex gap-3">
-            <Button variant="ghost" onClick={() => console.log("Settings")}>Settings</Button>
-            <Dialog>
-                <DialogTrigger asChild>
-                    <Button className="bg-sky-600 hover:bg-sky-700">Create Lobby</Button>
-                </DialogTrigger>
-                 <DialogContent className="sm:max-w-sm">
+        <div className="w-full h-full p-6 flex flex-col gap-8 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
+
+            {/* Header & Actions Area */}
+            <div className="flex justify-between items-center pb-6 border-b border-slate-200 dark:border-slate-800">
+                <div>
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Game Lobbies</h2>
+                    <p className="text-sm text-slate-500">Jump into a game or host your own.</p>
+                </div>
+
+                <div className="flex gap-3">
+                    <Button variant="ghost" onClick={() => console.log("Settings")}>Settings</Button>
+                    <Dialog>
+                        <DialogTrigger asChild>
+                            <Button className="bg-sky-600 hover:bg-sky-700">Create Lobby</Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-sm">
                             <DialogHeader>
                                 <DialogTitle>Create Lobby</DialogTitle>
                                 <DialogDescription>
@@ -184,48 +184,53 @@ function Main({ userName }: MainProps) {
                                 <Button onClick={() => createLobby(lobbyName)} type="submit">Create</Button>
                             </DialogFooter>
                         </DialogContent>
-            </Dialog>
-        </div>
-    </div>
+                    </Dialog>
+                </div>
+            </div>
 
-    {/* Table Area */}
-    <div className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-        <Table>
-            <TableHeader className="bg-slate-100 dark:bg-slate-800">
-                <TableRow>
-                    <TableHead>Lobby Name</TableHead>
-                    <TableHead>Variant</TableHead>
-                    <TableHead>Players</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-                {lobbyList?.length > 0 ? (
-                    lobbyList.map(([id, lobby]) => (
-                        <TableRow key={id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                            <TableCell className="font-medium">{lobby.name}</TableCell>
-                            <TableCell>{lobby.variant}</TableCell>
-                            <TableCell>
-                                <span className="inline-flex dark items-center px-2 py-1 rounded-full bg-slate-600 text-xs font-medium">
-                                    1 / {lobby.count}
-                                </span>
-                            </TableCell>
-                            <TableCell className="text-right">
-                                <Button size="sm" onClick={() => joinLobby(lobby.code)}>Join</Button>
-                            </TableCell>
+            {/* Table Area */}
+            <div className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                <Table>
+                    <TableHeader className="bg-slate-100 dark:bg-slate-800">
+                        <TableRow>
+                            <TableHead>Lobby Name</TableHead>
+                            <TableHead>Variant</TableHead>
+                            <TableHead>Players</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
-                    ))
-                ) : (
-                    <TableRow>
-                        <TableCell colSpan={4} className="h-24 text-center text-slate-500">
-                            No active lobbies found.
-                        </TableCell>
-                    </TableRow>
-                )}
-            </TableBody>
-        </Table>
-    </div>
-</div>
+                    </TableHeader>
+                    <TableBody>
+                        {lobbyList?.length > 0 ? (
+                            lobbyList.map(([id, lobby]) => (
+                                <TableRow key={id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                    <TableCell className="font-medium">{lobby.name}</TableCell>
+                                    <TableCell>{lobby.variant}</TableCell>
+                                    <TableCell>
+                                        <span className="inline-flex dark items-center px-2 py-1 rounded-full bg-slate-600 text-xs font-medium">
+                                            1 / {lobby.count}
+                                        </span>
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <Button size="sm" onClick={() => joinLobby(lobby.code)}>Join</Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))
+                        ) : (
+                            <TableRow>
+                                <TableCell colSpan={4} className="h-24 text-center text-slate-500">
+                                    No active lobbies found.
+                                </TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                </Table>
+
+
+            </div>
+            <div className='w-2/3 self-center flex flex-row justify-center align-center'>
+                <label className='mr-5 font-bold text-slate-900 dark:text-white'>Join via lobby code:</label><Input onInput={(e) => { setLobbyCode(e.currentTarget.value) }} className='w-1/3 mr-5' type='text'></Input> <Button size="sm" onClick={() => joinLobby(lobbyCode)}>Join</Button>
+            </div>
+        </div>
     )
 }
 
