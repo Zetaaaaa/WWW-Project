@@ -183,6 +183,10 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("LOBBYMSG", ({ message, lobby }) => {
+    io.to(`ROOM_${lobby}`).emit("LOBBYMSG", { content: message });
+  });
+
   socket.on("GO_BACK", () => {
     emitLobbyList();
   });
