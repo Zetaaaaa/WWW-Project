@@ -23,13 +23,14 @@ const Variant = Object.freeze({
 });
 
 class Lobby {
-  constructor(name, variant, count, players, status) {
+  constructor(name, variant, count, players, status, hostUuid) {
     this.name = name;
     this.code = randcode();
     this.variant = variant;
     this.count = count;
-    this.players = [];
-    this.status = LobbyStatus.AWAITING_PLAYERS;
+    this.players = []; // Array of player objects
+    this.status = status || LobbyStatus.AWAITING_PLAYERS;
+    this.hostUuid = hostUuid; // Store the permanent ID
   }
 }
 
@@ -57,8 +58,20 @@ const LobbyMap = new Map();
 const activeSockets = {};
 
 //sample lobbies
-const lobbyTest = new Lobby("test", Variant.NORMAL, 5);
-const lobbyTest2 = new Lobby("test2", Variant.LIMITED, 6);
+const lobbyTest = new Lobby(
+  "test",
+  Variant.NORMAL,
+  5,
+  LobbyStatus.AWAITING_PLAYERS,
+  "aaa",
+);
+const lobbyTest2 = new Lobby(
+  "test2",
+  Variant.LIMITED,
+  6,
+  LobbyStatus.AWAITING_PLAYERS,
+  "aaa",
+);
 LobbyMap.set(`ROOM_${lobbyTest.code}`, lobbyTest);
 LobbyMap.set(`ROOM_${lobbyTest2.code}`, lobbyTest2);
 
@@ -101,6 +114,10 @@ io.use((socket, next) => {
       const playerUpdate = setUpPlayerRefresh(user, player, socket);
       PlayerArr[index] = playerUpdate;
     } else {
+      console.log("newplayer");
+      console.log(user.uuid);
+      
+      
       let newPlayer = new Player(user.username, user.uuid, socket.id, [
         socket.id,
         "lobby",
@@ -125,23 +142,33 @@ io.on("connection", (socket) => {
 
   emitLobbyList();
 
-  socket.on("CREATE_LOBBY", ({ userName, lobbyName }) => {
-    const lobby = createLobby(lobbyName);
+  socket.on("CREATE_LOBBY", ({lobbyName,token}) => {
+    // 1. Create the player object using the persistent UUID
+    
+    const data = getTokenData(token.value)
+    
+
+    // 2. Create the lobby using the player object (which contains the uuid)
+    const lobby = createLobby(lobbyName, data.uuid);
 
     if (!lobby) {
-      socket.emit("LOBBY_FAILED", { status: Status.FAILED, data: "nic" });
+      socket.emit("LOBBY_FAILED", {
+        status: Status.FAILED,
+        data: "Failed to create lobby",
+      });
     } else {
+      socket.join(`ROOM_${lobby.code}`);
+
       socket.emit("LOBBY_CREATED", {
         status: Status.COMPLETED,
         lobby: lobby,
       });
 
-      // Notify EVERYONE of the updated lobby list SUBJECT TO CHANGE
+      // Notify everyone of the updated lobby list
       const updatedList = Array.from(LobbyMap.entries());
       io.to("lobby").emit("LOBBY_LIST", updatedList);
     }
   });
-
   socket.on("JOIN_LOBBY", ({ userName, lobbyCode }) => {
     const index = PlayerArr.findIndex((p) => p.socket == socket.id);
     let player = PlayerArr.filter((p) => p.socket == socket.id)[0];
@@ -170,21 +197,58 @@ io.on("connection", (socket) => {
     console.log(PlayerArr);
   });
 
-  socket.on("ROOM_HELLO", ({ data }) => {
-    console.log(`User ${socket.id} in the room - letting know others`);
+  socket.on("ROOM_HELLO", ({ data: lobbyCode, uuid, userName }) => {
+    // 1. Ensure the user is actually added to the lobby's player list here
+    // before broadcasting, otherwise the joining player won't see themselves!
 
-    const players = fetchConnectedPeopleArray(data);
+    const players = getRoomData(lobbyCode);
     if (!players) {
-      console.log("LOBBY NOT FOUND");
-
       socket.emit("NOT_FOUND");
     } else {
-      io.to(`ROOM_${data}`).emit("ROOM_REFRESH", { playerList: players });
+      io.to(`ROOM_${lobbyCode}`).emit("ROOM_REFRESH", { playerList: players });
     }
   });
 
-  socket.on("LOBBYMSG", ({ message, lobby }) => {
-    io.to(`ROOM_${lobby}`).emit("LOBBYMSG", { content: message });
+  socket.on("LOBBYMSG", ({ message, lobby, userName }) => {
+    console.log("msg");
+
+    io.to(`ROOM_${lobby}`).emit("LOBBYMSG", {
+      message: message,
+      username: userName,
+    });
+  });
+
+  socket.on("START_GAME", async ({ lobby,uuid }) => {
+    const lobbyData = LobbyMap.get(`ROOM_${lobby}`);
+    // console.log("uuid", uuid);
+    // console.log(lobbyData);
+    
+    // 1. Authorization: Verify lobby exists and user is the host
+    if (!lobbyData || lobbyData.players[0].uuid !== uuid) {
+      return socket.emit("errorResponse", {
+        message: "Only the host can start the game.",
+      });
+    }
+
+    // 2. Validate state
+    if (lobbyData.players.length < 2) {
+      return socket.emit("errorResponse", {
+        message: "Need at least 2 players.",
+      });
+    }
+
+    // 3. Update Status
+    lobbyData.status = "IN_PROGRESS"; // Assume LobbyStatus.IN_PROGRESS
+    LobbyMap.set(lobby, lobbyData);
+
+    // 4. Initialize PlayerGame objects for the game loop
+    // (This prepares the hands for each player)
+    lobbyData.players.forEach((p) => {
+      // logic to create PlayerGame instances here
+    });
+
+    // 5. Broadcast to everyone
+    io.to(`ROOM_${lobby}`).emit("GAME_STARTED");
   });
 
   socket.on("GO_BACK", () => {
@@ -209,11 +273,20 @@ io.on("connection", (socket) => {
   // const count = room ? room.size : 0;
   // console.log(`There are ${count} users in the room.`);
 
-  function createLobby(lobbyName, player) {
-    let players = [];
-    players.push(player);
-    const lobby = new Lobby(lobbyName, Variant.NORMAL, 5, players);
-    // PlayerMap.set(lobbyName, lobby);
+  function createLobby(lobbyName, uuid) {
+    // Ensure 'player' is an object that contains { username, uuid, socket }
+    let player =PlayerArr.find((p) => p.uuid === uuid);
+   
+    
+    // Pass the player's uuid as the hostUuid
+    const lobby = new Lobby(
+      lobbyName,
+      Variant.NORMAL,
+      5,
+      [player],
+      LobbyStatus.AWAITING_PLAYERS,
+      player.uuid, // The creator is the host
+    );
 
     LobbyMap.set(`ROOM_${lobby.code}`, lobby);
     emitLobbyList();
@@ -226,16 +299,13 @@ io.on("connection", (socket) => {
     io.emit("LOBBY_LIST", updatedList);
   }
 
-  function fetchConnectedPeopleArray(lobbyCode) {
+  function getRoomData(lobbyCode) {
     const fetchedLobby = LobbyMap.get(`ROOM_${lobbyCode}`);
+    if (!fetchedLobby) return null;
 
-    if (!fetchedLobby) {
-      return false;
-    } else {
-      // console.log(fetchedLobby);
-      const usernames = fetchedLobby.players.map((player) => player.username);
-      return usernames;
-    }
+    // Return objects so the client can use the UUID
+    const usernames = fetchedLobby.players.map((player) => player.username);
+    return usernames;
   }
 });
 
@@ -332,7 +402,7 @@ function getTokenData(token) {
     console.log("Access Denied: No token provided");
     return false;
     // return res.status(401).json({ message: "Access Denied: No token provided" });
-  }
+  }  
   let raw = jwt.decode(token);
 
   const uuid = raw.split("TOKENSTRING")[0];
@@ -376,6 +446,7 @@ function setCurrentRooms(socket, lobbyCode, userName) {
   player.rooms = player.rooms.filter((r) => r != "lobby");
 
   PlayerArr[index] = player;
+  console.log(LobbyMap);
 
   const lobby = LobbyMap.get(`ROOM_${lobbyCode}`);
 
@@ -410,4 +481,12 @@ function randcode(length = 6) {
     result += chars[randomValues[i] % chars.length];
   }
   return result;
+}
+
+function getPlayersInRoom(lobbyCode) {
+  const lobby = LobbyMap.get(lobbyCode);
+  if (!lobby) return [];
+
+  // Return an array of player objects associated with this lobby
+  return lobby.players;
 }

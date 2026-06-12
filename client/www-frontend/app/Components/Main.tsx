@@ -40,6 +40,7 @@ function Main({ userName }: MainProps) {
     const [lobbyName, setLobbyName] = useState<string | null>("Lobby")
     const [lobbyList, setLobbyList] = useState(null)
     const [lobbyCode, setLobbyCode] = useState(null)
+    const [token, setToken]= useState(null)
     const socketRef = useRef<any>(null);
     const router = useRouter();
 
@@ -56,12 +57,13 @@ function Main({ userName }: MainProps) {
     }
 
 
-    function createLobby(lobbyName: string) {
+    function createLobby(lobbyName: string, token:string) {
         if (!socketRef.current) return;
 
         console.log("Attempting creation of a new lobby");
         socketRef.current.emit("CREATE_LOBBY", {
             lobbyName: lobbyName,
+            token:token
         });
     }
 
@@ -85,7 +87,7 @@ function Main({ userName }: MainProps) {
 
     const handleJoinedLobby = (data) => {
         console.log("JOINED LOBBY", data);
-        router.push("game/" + data);
+        router.push("lobby/" + data);
     };
 
     const handleErrorResponse = (content) => {
@@ -98,7 +100,7 @@ function Main({ userName }: MainProps) {
         async function init() {
             const token = await getToken();
             if (!token || !isMounted) return; // Stop if component unmounted
-
+            setToken(token)
             const socket = getSocket(token.value);
             socketRef.current = socket;
 
@@ -181,7 +183,7 @@ function Main({ userName }: MainProps) {
                                 <DialogClose asChild>
                                     <Button variant="outline">Cancel</Button>
                                 </DialogClose>
-                                <Button onClick={() => createLobby(lobbyName)} type="submit">Create</Button>
+                                <Button onClick={() => createLobby(lobbyName,token)} type="submit">Create</Button>
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>
