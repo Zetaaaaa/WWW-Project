@@ -30,6 +30,9 @@ class Lobby {
     this.count = count;
     this.players = []; // Array of player objects
     this.status = status || LobbyStatus.AWAITING_PLAYERS;
+    this.round = 0;
+    this.phase = 0;
+    this.activePlaer = 0; //Active's player turn, 0 is dealer because dealer is always first couse he's host
     this.hostUuid = hostUuid; // Store the permanent ID
   }
 }
@@ -48,6 +51,7 @@ class PlayerGame {
     this.username = username;
     this.uuid = uuid;
     this.hand = { c1: "XXX", c2: "XXX", c3: "XXX", c4: "XXX", c5: "xxx" };
+    this.money
   }
 }
 
@@ -191,11 +195,30 @@ io.on("connection", (socket) => {
     console.log("&*&!@&^!*&^$SOMEONE IS LEAVING");
   });
 
-  socket.on("TESTING", () => {
+  socket.on("TESTING", (data) => {
     console.log(`Socket ${socket.id} is accessing testing event`);
     console.log(`Rooms:`);
-    console.log(PlayerArr);
+
+    socket.emit("TESTING",{data:"chuj"})
   });
+
+  socket.on("GET_GAME_DATA",(lobby)=>{
+    console.log("getgamedata");
+    //find player
+
+    const lobbyData = LobbyMap.get(`ROOM_${lobby}`);
+    const globalPlayer = PlayerArr.find((p) => p.socket === socket.id);
+    const gamePlayer = lobbyData.players.find((p) => p.uuid === globalPlayer.uuid);
+
+    const response = {
+      round: lobbyData.round,
+      phase: lobbyData.phase,
+      player: gamePlayer || null
+    };
+    console.log(response)
+    socket.emit("GAME_DATA",{data:response})
+    
+  })
 
   socket.on("ROOM_HELLO", ({ data: lobbyCode, uuid, userName }) => {
     // 1. Ensure the user is actually added to the lobby's player list here
@@ -239,7 +262,7 @@ io.on("connection", (socket) => {
 
     // 3. Update Status
     lobbyData.status = "IN_PROGRESS"; // Assume LobbyStatus.IN_PROGRESS
-    LobbyMap.set(lobby, lobbyData);
+    LobbyMap.set(`ROOM_${lobby}`, lobbyData);
 
     // 4. Initialize PlayerGame objects for the game loop
     // (This prepares the hands for each player)
