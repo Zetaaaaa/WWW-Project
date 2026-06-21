@@ -32,7 +32,7 @@ class Lobby {
     this.status = status || LobbyStatus.AWAITING_PLAYERS;
     this.round = 0;
     this.phase = 0;
-    this.activePlaer = 0; //Active's player turn, 0 is dealer because dealer is always first couse he's host
+    this.activePlayer = 0; //Active's player turn, 0 is dealer because dealer is always first couse he's host
     this.hostUuid = hostUuid; // Store the permanent ID
   }
 }
@@ -46,13 +46,43 @@ class Player {
   }
 }
 
+const GamePhase = Object.freeze({
+  DEALING: "DEALING",
+  BETTING_1: "BETTING_1",
+  EXCHANGE: "EXCHANGE",
+  DEALING_2: "DEALING_2",
+  BETTING_2: "BETTING_2",
+  SHOWDOWN: "SHOWDOWN"
+});
+
 class PlayerGame {
-  constructor(username, uuid, hand) {
+  constructor(username, uuid) {
     this.username = username;
     this.uuid = uuid;
-    this.hand = { c1: "XXX", c2: "XXX", c3: "XXX", c4: "XXX", c5: "xxx" };
-    this.money
+    this.hand = [];
+    this.money = 10000;
+    this.currentBet = 0;
+    this.folded = false;
+    this.role = "PLAYER"; // DEALER, ACCOMPLICE, PLAYER
+    this.hasSkippedExchange = false;
   }
+}
+
+function createDeck() {
+  const suits = ['S', 'H', 'C', 'D'];
+  const ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '0', 'J', 'Q', 'K', 'A'];
+  let deck = [];
+  for (let s of suits) for (let r of ranks) deck.push(r + s);
+  return deck.sort(() => Math.random() - 0.5);
+}
+
+// PLACEHOLDER
+function evaluateHandValue(hand) {
+  if (!hand || hand.length === 0) return 0;
+  const values = { '2':2, '3':3, '4':4, '5':5, '6':6, '7':7, '8':8, '9':9, '0':10, 'J':11, 'Q':12, 'K':13, 'A':14 };
+  let score = 0;
+  hand.forEach(card => score += values[card[0]]);
+  return score;
 }
 
 // let PlayerMap = new Map();
@@ -202,23 +232,23 @@ io.on("connection", (socket) => {
     socket.emit("TESTING",{data:"chuj"})
   });
 
-  socket.on("GET_GAME_DATA",(lobby)=>{
-    console.log("getgamedata");
-    //find player
+  // socket.on("GET_GAME_DATA",(lobby)=>{
+  //   console.log("getgamedata");
+  //   //find player
 
-    const lobbyData = LobbyMap.get(`ROOM_${lobby}`);
-    const globalPlayer = PlayerArr.find((p) => p.socket === socket.id);
-    const gamePlayer = lobbyData.players.find((p) => p.uuid === globalPlayer.uuid);
+  //   const lobbyData = LobbyMap.get(`ROOM_${lobby}`);
+  //   const globalPlayer = PlayerArr.find((p) => p.socket === socket.id);
+  //   const gamePlayer = lobbyData.players.find((p) => p.uuid === globalPlayer.uuid);
 
-    const response = {
-      round: lobbyData.round,
-      phase: lobbyData.phase,
-      player: gamePlayer || null
-    };
-    console.log(response)
-    socket.emit("GAME_DATA",{data:response})
+  //   const response = {
+  //     round: lobbyData.round,
+  //     phase: lobbyData.phase,
+  //     player: gamePlayer || null
+  //   };
+  //   console.log(response)
+  //   socket.emit("GAME_DATA",{data:response})
     
-  })
+  // })
 
   socket.on("ROOM_HELLO", ({ data: lobbyCode, uuid, userName }) => {
     // 1. Ensure the user is actually added to the lobby's player list here
@@ -241,38 +271,197 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.on("START_GAME", async ({ lobby,uuid }) => {
+  socket.on("START_GAME", async ({ lobby, uuid }) => {
     const lobbyData = LobbyMap.get(`ROOM_${lobby}`);
-    // console.log("uuid", uuid);
-    // console.log(lobbyData);
-    
-    // 1. Authorization: Verify lobby exists and user is the host
     if (!lobbyData || lobbyData.players[0].uuid !== uuid) {
-      return socket.emit("errorResponse", {
-        message: "Only the host can start the game.",
-      });
+      return socket.emit("errorResponse", { message: "Only the host can start the game." });
     }
-
-    // 2. Validate state
     if (lobbyData.players.length < 2) {
-      return socket.emit("errorResponse", {
-        message: "Need at least 2 players.",
-      });
+      return socket.emit("errorResponse", { message: "Need at least 2 players." });
     }
 
-    // 3. Update Status
-    lobbyData.status = "IN_PROGRESS"; // Assume LobbyStatus.IN_PROGRESS
-    LobbyMap.set(`ROOM_${lobby}`, lobbyData);
+    lobbyData.status = LobbyStatus.ONGOING;
+    lobbyData.phase = GamePhase.DEALING;
+    lobbyData.deck = createDeck();
+    lobbyData.pot = 0;
+    lobbyData.currentBet = 0;
+    lobbyData.winnerData = null;
 
-    // 4. Initialize PlayerGame objects for the game loop
-    // (This prepares the hands for each player)
+    // Przypisanie ról
+    lobbyData.players[0].role = "DEALER";
+    // Losowanie wspólnika (ACCOMPLICE) spośród pozostałych
+    const randIdx = Math.floor(Math.random() * (lobbyData.players.length - 1)) + 1;
+    lobbyData.players[randIdx].role = "ACCOMPLICE";
+
+    // Ustawienie tury na pierwszego gracza po Dealerze
+    lobbyData.turnIndex = 1; 
+
+    // Reset graczy
     lobbyData.players.forEach((p) => {
-      // logic to create PlayerGame instances here
+      p.hand = [];
+      p.currentBet = 0;
+      p.folded = false;
+      p.hasSkippedExchange = false;
     });
 
-    // 5. Broadcast to everyone
+    LobbyMap.set(`ROOM_${lobby}`, lobbyData);
     io.to(`ROOM_${lobby}`).emit("GAME_STARTED");
+    io.to(`ROOM_${lobby}`).emit("REFRESH_GAME_DATA");
   });
+
+  socket.on("GET_GAME_DATA", (lobby) => {
+    const lobbyData = LobbyMap.get(`ROOM_${lobby}`);
+    if(!lobbyData) return;
+    const globalPlayer = PlayerArr.find((p) => p.socket === socket.id);
+    const gamePlayer = lobbyData.players.find((p) => p.uuid === globalPlayer.uuid);
+    const isDealer = gamePlayer.role === "DEALER";
+
+    const isDealingPhase = lobbyData.phase === GamePhase.DEALING || lobbyData.phase === GamePhase.DEALING_2;
+
+    const sanitizedPlayers = lobbyData.players.map(p => ({
+      username: p.username,
+      uuid: p.uuid,
+      money: p.money,
+      currentBet: p.currentBet,
+      folded: p.folded,
+      cardCount: (isDealer || !isDealingPhase) ? p.hand.length : "?",
+      role: isDealer || p.uuid === globalPlayer.uuid ? p.role : "???",
+      hand: (isDealer || lobbyData.phase === GamePhase.SHOWDOWN || (p.uuid === globalPlayer.uuid && !isDealingPhase)) ? p.hand : []
+    }));
+
+    const response = {
+      phase: lobbyData.phase,
+      pot: lobbyData.pot,
+      currentHighestBet: lobbyData.currentBet,
+      turnIndex: lobbyData.turnIndex,
+      activePlayerUuid: lobbyData.players[lobbyData.turnIndex].uuid,
+      players: sanitizedPlayers,
+      topCards: isDealer && isDealingPhase ? lobbyData.deck.slice(0, 2) : [],
+      winnerData: lobbyData.winnerData
+    };
+    socket.emit("GAME_DATA", { data: response, myRole: gamePlayer.role, myUuid: gamePlayer.uuid });
+  });
+
+  socket.on("GAME_ACTION", ({ lobby, action, payload }) => {
+    const lobbyData = LobbyMap.get(`ROOM_${lobby}`);
+    if (!lobbyData) return;
+
+    const playingPlayers = lobbyData.players.filter(p => p.role !== "DEALER");
+
+    if (action === "DEAL_CARD" && (lobbyData.phase === GamePhase.DEALING || lobbyData.phase === GamePhase.DEALING_2)) {
+      const targetPlayer = playingPlayers.find(p => p.uuid === payload.targetUuid);
+      if (targetPlayer && targetPlayer.hand.length < 5 && lobbyData.deck.length > 0) {
+        targetPlayer.hand.push(lobbyData.deck.shift());
+        
+        const allDealt = playingPlayers.filter(p => !p.folded).every(p => p.hand.length === 5);
+        if (allDealt) {
+            lobbyData.phase = lobbyData.phase === GamePhase.DEALING ? GamePhase.BETTING_1 : GamePhase.BETTING_2;
+        }
+      }
+    }
+
+    if (action === "BET" && (lobbyData.phase === GamePhase.BETTING_1 || lobbyData.phase === GamePhase.BETTING_2)) {
+      const pIndex = lobbyData.turnIndex;
+      const player = lobbyData.players[pIndex];
+      
+      if (payload.type === "FOLD") {
+        player.folded = true;
+      } else {
+        let amountToAdd = payload.amount; 
+        if (player.money < amountToAdd) amountToAdd = player.money; //All in
+
+        player.money -= amountToAdd;
+        player.currentBet += amountToAdd;
+        lobbyData.pot += amountToAdd;
+        
+        if (player.currentBet > lobbyData.currentBet) {
+          lobbyData.currentBet = player.currentBet;
+        }
+      }
+
+      const activePlayers = playingPlayers.filter(p => !p.folded);
+      const allMatchedOrAllIn = activePlayers.every(p => p.currentBet === lobbyData.currentBet || p.money === 0);
+      
+      if (activePlayers.length === 1 || allMatchedOrAllIn) {
+        if (lobbyData.phase === GamePhase.BETTING_1) lobbyData.phase = GamePhase.EXCHANGE;
+        else if (lobbyData.phase === GamePhase.BETTING_2) doShowdown(lobbyData, playingPlayers);
+        
+        lobbyData.currentBet = 0;
+        playingPlayers.forEach(p => p.currentBet = 0);
+        
+        lobbyData.turnIndex = 1;
+        while(lobbyData.turnIndex < lobbyData.players.length && lobbyData.players[lobbyData.turnIndex].folded) {
+            lobbyData.turnIndex++;
+        }
+      } else {
+        do {
+          lobbyData.turnIndex = (lobbyData.turnIndex + 1) % lobbyData.players.length;
+        } while (lobbyData.players[lobbyData.turnIndex].folded || lobbyData.players[lobbyData.turnIndex].role === "DEALER");
+      }
+    }
+
+    if (action === "EXCHANGE_CARDS" && lobbyData.phase === GamePhase.EXCHANGE) {
+       const player = playingPlayers.find(p => p.uuid === payload.uuid);
+       if(player && !player.hasSkippedExchange) {
+         
+         const removedCards = player.hand.filter((_, index) => payload.cardsToRemove.includes(index));
+         const newHand = player.hand.filter((_, index) => !payload.cardsToRemove.includes(index));
+         
+
+         lobbyData.deck.push(...removedCards);
+         lobbyData.deck.sort(() => Math.random() - 0.5);
+         
+         player.hand = newHand; 
+         player.hasSkippedExchange = true;
+       }
+
+       const activePlayers = playingPlayers.filter(p => !p.folded);
+       const allExchanged = activePlayers.every(p => p.hasSkippedExchange);
+       if(allExchanged) {
+         lobbyData.phase = GamePhase.DEALING_2;
+       }
+    }
+
+    if (action === "NEXT_ROUND" && lobbyData.phase === GamePhase.SHOWDOWN) {
+        lobbyData.phase = GamePhase.DEALING;
+        lobbyData.pot = 0;
+        lobbyData.currentBet = 0;
+        lobbyData.deck = createDeck();
+        lobbyData.winnerData = null;
+        lobbyData.turnIndex = 1;
+        playingPlayers.forEach(p => {
+          p.hand = [];
+          p.folded = false;
+          p.hasSkippedExchange = false;
+        });
+    }
+
+    LobbyMap.set(`ROOM_${lobby}`, lobbyData);
+    io.to(`ROOM_${lobby}`).emit("REFRESH_GAME_DATA"); 
+  });
+
+  // Dodaj parametr playingPlayers do doShowdown
+  function doShowdown(lobbyData, playingPlayers) {
+    lobbyData.phase = GamePhase.SHOWDOWN;
+    const activePlayers = playingPlayers.filter(p => !p.folded);
+    
+    if (activePlayers.length === 0) return; // Zabezpieczenie
+
+    let winner = activePlayers[0];
+    let bestScore = evaluateHandValue(winner.hand);
+
+    for (let i = 1; i < activePlayers.length; i++) {
+      let score = evaluateHandValue(activePlayers[i].hand);
+      if (score > bestScore) {
+        bestScore = score;
+        winner = activePlayers[i];
+      }
+    }
+
+    winner.money += lobbyData.pot;
+    lobbyData.winnerData = { username: winner.username, pot: lobbyData.pot };
+  }
+
 
   socket.on("GO_BACK", () => {
     emitLobbyList();
