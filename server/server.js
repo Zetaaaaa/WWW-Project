@@ -266,31 +266,29 @@ io.on("connection", (socket) => {
     lobbyData.winnerData = null;
     lobbyData.votes = {};
 
-    // Przypisanie ról
     lobbyData.players[0].role = "DEALER";
     const randIdx = Math.floor(Math.random() * (lobbyData.players.length - 1)) + 1;
     lobbyData.players[randIdx].role = "ACCOMPLICE";
 
     lobbyData.turnIndex = 1;
 
-    // Obliczanie bazowego zakładu (Blind/Ante)
     const baseBet = 100 * Math.pow(2, lobbyData.round - 1);
     lobbyData.currentBet = baseBet;
 
-    // Reset graczy i pobranie stawki wejściowej
     lobbyData.players.forEach((p) => {
       p.hand = [];
       p.folded = false;
       p.hasSkippedExchange = false;
       p.eliminated = false;
 
-      if (p.role !== "DEALER") {
+      if (p.role === "DEALER") {
+        p.money = 0;
+        p.currentBet = 0;
+      } else {
         let contribution = Math.min(p.money, baseBet);
         p.money -= contribution;
         p.currentBet = contribution;
         lobbyData.pot += contribution;
-      } else {
-        p.currentBet = 0;
       }
     });
 
@@ -333,7 +331,8 @@ io.on("connection", (socket) => {
       winnerData: lobbyData.winnerData,
       round: lobbyData.round,
       kickedPlayer: lobbyData.kickedPlayer,
-      hostUuid: lobbyData.hostUuid
+      hostUuid: lobbyData.hostUuid,
+      isGameOver: lobbyData.isGameOver || false
     };
     socket.emit("GAME_DATA", { data: response, myRole: gamePlayer.role, myUuid: gamePlayer.uuid });
   });
@@ -352,6 +351,7 @@ io.on("connection", (socket) => {
         const allDealt = playingPlayers.filter(p => !p.folded).every(p => p.hand.length === 5);
         if (allDealt) {
           lobbyData.phase = lobbyData.phase === GamePhase.DEALING ? GamePhase.BETTING_1 : GamePhase.BETTING_2;
+          playingPlayers.forEach(p => p.hasActed = false);
         }
       }
     }
@@ -359,6 +359,8 @@ io.on("connection", (socket) => {
     if (action === "BET" && (lobbyData.phase === GamePhase.BETTING_1 || lobbyData.phase === GamePhase.BETTING_2)) {
       const pIndex = lobbyData.turnIndex;
       const player = lobbyData.players[pIndex];
+
+      player.hasActed = true;
 
       if (payload.type === "FOLD") {
         player.folded = true;
@@ -376,28 +378,26 @@ io.on("connection", (socket) => {
       }
 
       const activePlayers = playingPlayers.filter(p => !p.folded);
-      const allMatchedOrAllIn = activePlayers.every(p => p.currentBet === lobbyData.currentBet || p.money === 0);
+      const allMatchedAndActed = activePlayers.every(p => p.hasActed && (p.currentBet === lobbyData.currentBet || p.money === 0));
 
       if (activePlayers.length === 1) {
         doShowdown(lobbyData, playingPlayers);
         lobbyData.currentBet = 0;
         playingPlayers.forEach(p => p.currentBet = 0);
       }
-      else if (allMatchedOrAllIn) {
+      else if (allMatchedAndActed) {
         if (lobbyData.phase === GamePhase.BETTING_1) lobbyData.phase = GamePhase.EXCHANGE;
         else if (lobbyData.phase === GamePhase.BETTING_2) doShowdown(lobbyData, playingPlayers);
 
         lobbyData.currentBet = 0;
         playingPlayers.forEach(p => p.currentBet = 0);
 
-        // Bezpieczne szukanie następnego gracza z resetem (zabezpieczenie indeksu)
-       lobbyData.turnIndex = 1;
+        lobbyData.turnIndex = 1;
         while (lobbyData.turnIndex < lobbyData.players.length && (lobbyData.players[lobbyData.turnIndex].folded || lobbyData.players[lobbyData.turnIndex].eliminated || lobbyData.players[lobbyData.turnIndex].role === "DEALER")) {
           lobbyData.turnIndex++;
         }
         if (lobbyData.turnIndex >= lobbyData.players.length) lobbyData.turnIndex = 1;
       }
-      // --- Licytacja trwa dalej, szukamy następnego ---
       else {
         do {
           lobbyData.turnIndex = (lobbyData.turnIndex + 1) % lobbyData.players.length;
@@ -428,17 +428,24 @@ io.on("connection", (socket) => {
           lobbyData.phase = GamePhase.DEALING_2;
         } else {
           lobbyData.phase = GamePhase.BETTING_2;
+          playingPlayers.forEach(p => p.hasActed = false);
         }
       }
     }
     if (action === "START_VOTING" && lobbyData.phase === GamePhase.SHOWDOWN) {
-      lobbyData.phase = GamePhase.VOTING;
-      lobbyData.votes = {};
-      lobbyData.kickedPlayer = null;
+      const activeNormalPlayers = lobbyData.players.filter(p => p.role !== "DEALER" && !p.eliminated);
+
+      if (activeNormalPlayers.length <= 2) {
+        lobbyData.phase = GamePhase.VOTING_RESULT;
+        lobbyData.kickedPlayer = null;
+      } else {
+        lobbyData.phase = GamePhase.VOTING;
+        lobbyData.votes = {};
+        lobbyData.kickedPlayer = null;
+      }
     }
 
     if (action === "CAST_VOTE" && lobbyData.phase === GamePhase.VOTING) {
-      // Zabezpieczenie przed próbą oddania głosu na Dealera (Hosta)
       const targetP = lobbyData.players.find(p => p.uuid === payload.targetUuid);
       if (targetP && targetP.role === "DEALER") return;
 
@@ -469,13 +476,13 @@ io.on("connection", (socket) => {
             lobbyData.kickedPlayer = kicked.username;
           }
         } else {
-          lobbyData.kickedPlayer = null; // Reset z poprzednich rund
+          lobbyData.kickedPlayer = null;
         }
 
-        lobbyData.phase = GamePhase.VOTING_RESULT;
+        checkTriggerCountdown(lobbyData);
 
-        // Sprawdzamy, czy po wyrzuceniu gracza gra się nie zakończyła
-        checkEndGameCondition(lobbyData);
+        lobbyData.phase = GamePhase.VOTING_RESULT;
+        checkEndGameCondition(lobbyData, false);
       }
     }
 
@@ -483,6 +490,7 @@ io.on("connection", (socket) => {
       lobbyData.phase = GamePhase.DEALING;
       lobbyData.pot = 0;
       lobbyData.round += 1;
+
       const baseBet = 100 * Math.pow(2, lobbyData.round - 1);
       lobbyData.currentBet = baseBet;
       lobbyData.deck = createDeck();
@@ -494,23 +502,24 @@ io.on("connection", (socket) => {
         p.hand = [];
         p.folded = false;
         p.hasSkippedExchange = false;
+        p.hasActed = false;
 
         let contribution = Math.min(p.money, baseBet);
         p.money -= contribution;
         p.currentBet = contribution;
         lobbyData.pot += contribution;
 
-        // Eliminacja graczy za brak funduszy
         if (p.money <= 0) {
           p.eliminated = true;
         }
       });
 
-      // Sprawdzamy czy wyeliminowanie bankrutów nie zakończyło gry
-      checkEndGameCondition(lobbyData);
+      checkTriggerCountdown(lobbyData);
+
+      const forceEnd = lobbyData.targetEndRound && lobbyData.round > lobbyData.targetEndRound;
+      checkEndGameCondition(lobbyData, forceEnd);
 
       if (lobbyData.phase !== GamePhase.SHOWDOWN) {
-        // Pomijamy wyeliminowanych przy wyznaczaniu tury (tylko jeśli gra trwa)
         while (lobbyData.turnIndex < lobbyData.players.length && (lobbyData.players[lobbyData.turnIndex].eliminated)) {
           lobbyData.turnIndex++;
         }
@@ -521,33 +530,42 @@ io.on("connection", (socket) => {
     io.to(`ROOM_${lobby}`).emit("REFRESH_GAME_DATA");
   });
 
-  // Dodaj parametr playingPlayers do doShowdown
+
   function doShowdown(lobbyData, playingPlayers) {
     lobbyData.phase = GamePhase.SHOWDOWN;
     const activePlayers = playingPlayers.filter(p => !p.folded && !p.eliminated);
 
     if (activePlayers.length === 0) return;
 
-    // Przygotowanie kart dla biblioteki pokersolver
     let hands = activePlayers.map(p => {
       let solverCards = p.hand.map(card => {
-        let rank = card[0] === '0' ? 'T' : card[0]; // pokersolver używa 'T' dla 10
-        let suit = card[1].toLowerCase();           // pokersolver używa małych liter dla koloru
+        let rank = card[0] === '0' ? 'T' : card[0];
+        let suit = card[1].toLowerCase();
         return rank + suit;
       });
 
       let solvedHand = Hand.solve(solverCards);
-      solvedHand.uuid = p.uuid; // Doczepiamy UUID, żeby wiedzieć, do kogo należy ręka
+      solvedHand.uuid = p.uuid;
       return solvedHand;
     });
 
-    // Znajdź zwycięzcę (w przypadku remisu wygrywa pierwsza znaleziona osoba dla uproszczenia)
     let winners = Hand.winners(hands);
     let winnerUuid = winners[0].uuid;
     let winner = activePlayers.find(p => p.uuid === winnerUuid);
 
     winner.money += lobbyData.pot;
     lobbyData.winnerData = { username: winner.username, pot: lobbyData.pot, handName: winners[0].name };
+
+    lobbyData.players.forEach(p => {
+      if (p.role !== "DEALER" && p.money <= 0) {
+        p.eliminated = true;
+      }
+    });
+
+    checkTriggerCountdown(lobbyData);
+
+    const forceEnd = lobbyData.targetEndRound && lobbyData.round >= lobbyData.targetEndRound;
+    checkEndGameCondition(lobbyData, forceEnd);
   }
 
 
@@ -789,27 +807,42 @@ function getPlayersInRoom(lobbyCode) {
   return lobby.players;
 }
 
-function checkEndGameCondition(lobbyData) {
-  // Szukamy aktywnych graczy poza Dealerem
+function checkEndGameCondition(lobbyData, forceEnd = false) {
   const remainingNormalPlayers = lobbyData.players.filter(p => p.role !== "DEALER" && !p.eliminated);
 
-  if (remainingNormalPlayers.length <= 1) {
-    lobbyData.phase = GamePhase.SHOWDOWN; // Przejście od razu do planszy końcowej
+  if (remainingNormalPlayers.length <= 1 || forceEnd) {
+    lobbyData.phase = GamePhase.SHOWDOWN;
+    lobbyData.isGameOver = true;
 
-    const dealer = lobbyData.players.find(p => p.role === "DEALER");
-    const dealerMoney = dealer ? dealer.money : 0;
-
-    // Sumujemy fundusze z kont graczy (wyeliminowani mają 0, bo przekazali kase dealerowi)
-    const teamMoney = lobbyData.players
-      .filter(p => p.role !== "DEALER")
+    const dealerTeamMoney = lobbyData.players
+      .filter(p => p.role === "DEALER" || p.role === "ACCOMPLICE")
       .reduce((sum, p) => sum + (p.money || 0), 0);
 
-    if (dealerMoney > teamMoney) {
-      lobbyData.winnerData = { username: `DRUŻYNA DEALERA WYGRYWA! (Dealer: $${dealerMoney} vs Gracze: $${teamMoney})`, pot: 0, handName: "Koniec Gry - Dominacja finansowa" };
-    } else if (teamMoney > dealerMoney) {
-      lobbyData.winnerData = { username: `DRUŻYNA GRACZY WYGRYWA! (Gracze: $${teamMoney} vs Dealer: $${dealerMoney})`, pot: 0, handName: "Koniec Gry - Dominacja finansowa" };
+    const playerTeamMoney = lobbyData.players
+      .filter(p => p.role === "PLAYER")
+      .reduce((sum, p) => sum + (p.money || 0), 0);
+
+    let msg = "";
+    if (dealerTeamMoney > playerTeamMoney) {
+      msg = `DRUŻYNA DEALERA WYGRYWA! (Dealer+Wspólnik: $${dealerTeamMoney} vs Gracze: $${playerTeamMoney})`;
+    } else if (playerTeamMoney > dealerTeamMoney) {
+      msg = `DRUŻYNA GRACZY WYGRYWA! (Gracze: $${playerTeamMoney} vs Dealer+Wspólnik: $${dealerTeamMoney})`;
     } else {
-      lobbyData.winnerData = { username: `REMIS! Obie drużyny skończyły z majątkiem $${dealerMoney}`, pot: 0, handName: "Koniec Gry - Równe salda" };
+      msg = `REMIS! Obie drużyny skończyły z majątkiem $${dealerTeamMoney}`;
     }
+
+    lobbyData.winnerData = {
+      username: msg,
+      pot: 0,
+      handName: forceEnd ? "Koniec Gry - Limit Rund Osiągnięty" : "Koniec Gry - Brak Przeciwników"
+    };
+  }
+}
+
+function checkTriggerCountdown(lobbyData) {
+  const hasEliminated = lobbyData.players.some(p => p.role !== "DEALER" && p.eliminated);
+
+  if (hasEliminated && !lobbyData.targetEndRound) {
+    lobbyData.targetEndRound = lobbyData.round + 3;
   }
 }

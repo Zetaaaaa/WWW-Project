@@ -33,7 +33,6 @@ export default function MainLobby() {
                 setGameData(response.data);
                 setMyRole(response.myRole);
                 setMyUuid(response.myUuid);
-                // Reset zaznaczonych kart przy zmianie fazy
                 if(response.data.phase !== 'EXCHANGE') setSelectedCardsToDiscard([]);
             });
 
@@ -76,10 +75,12 @@ export default function MainLobby() {
                     <h1 className="text-xl font-bold">Poker Game <span className="text-sm font-normal ml-2 text-gray-400">(Runda {gameData.round || 1})</span></h1>
                     <p>Faza: <span className="text-blue-400 font-semibold">{gameData.phase}</span></p>
                     <p>Pula: <span className="text-green-400 font-bold">${gameData.pot}</span></p>
+                    {isDealer && (
+                        <p className="mt-1">Konto Dealera: <span className="text-green-400 font-bold">${me?.money}</span></p>
+                    )}
                 </div>
-                {/* ... reszta headera bez zmian ... */}
             </header>
-            {/* --- WIDOK DEALERA PODCZAS ROZDAWANIA --- */}
+            {/* DEALER DEALING */}
             {isDealer && (gameData.phase === 'DEALING' || gameData.phase === 'DEALING_2') && (
                 <div className="bg-slate-800 p-4 rounded text-white border border-blue-500 shadow-lg">
                     <h2 className="text-lg mb-2 font-bold text-blue-300">Panel Dealera (Rozdawanie)</h2>
@@ -105,7 +106,7 @@ export default function MainLobby() {
                     </div>
                 </div>
             )}
-            {/* --- WIDOK STOŁU I GRACZY --- */}
+            {/* TABLE */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {playingPlayers.map((p: any) => (
                     <div key={p.uuid} className={`p-4 rounded border relative ${p.eliminated ? 'bg-gray-800 opacity-50 border-red-900' : 'bg-slate-50 border-slate-300'} ${p.uuid === gameData.activePlayerUuid && (gameData.phase === 'BETTING_1' || gameData.phase === 'BETTING_2') && !p.eliminated ? 'border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.5)] bg-yellow-50' : ''}`}>
@@ -113,7 +114,7 @@ export default function MainLobby() {
                         <h3 className="font-bold flex justify-between items-center text-slate-800">
                             <span className={p.eliminated ? 'text-gray-400' : ''}>
                                 {p.username} {p.uuid === myUuid ? '(Ty)' : ''}
-                                {isDealer && p.role === 'ACCOMPLICE' && <span className="text-xs ml-2 text-purple-600 bg-purple-100 px-2 py-1 rounded border border-purple-300">Wspólnik</span>}
+                                {(isDealer || p.uuid === myUuid) && p.role === 'ACCOMPLICE' && <span className="text-xs ml-2 text-purple-600 bg-purple-100 px-2 py-1 rounded border border-purple-300">Wspólnik</span>}
                             </span>
                             <span className={p.folded || p.eliminated ? 'text-red-500 font-bold' : 'text-green-700 font-bold'}>
                                 {p.eliminated ? 'Kicked' : (p.folded ? 'Fold' : `$${p.money}`)}
@@ -143,12 +144,12 @@ export default function MainLobby() {
                 ))}
             </div>
 
-            {/* --- PANEL AKCJI GRACZA --- */}
+            {/* ACTIONS */}
             {!isDealer && !me?.folded && !me?.eliminated && gameData.phase !== 'VOTING' && (
                 <div className="mt-4 bg-slate-800 text-white p-5 rounded-lg shadow-lg border border-slate-600">
                     <h3 className="font-bold mb-4 text-slate-200 text-lg border-b border-slate-600 pb-2">Twoje akcje</h3>
                     
-                    {/* Fazy Licytacji */}
+                    {/* BETTING */}
                     {(gameData.phase === 'BETTING_1' || gameData.phase === 'BETTING_2') && isMyTurn ? (
                         <div className="flex flex-col gap-4">
                             <div className="flex gap-3 items-center">
@@ -186,7 +187,7 @@ export default function MainLobby() {
                         <p className="text-slate-400 italic">Czekaj na swoją kolej...</p>
                     ) : null}
 
-                    {/* Faza Wymiany */}
+                    {/* EXCHANGE */}
                     {gameData.phase === 'EXCHANGE' && (
                         <div className="flex flex-col gap-4">
                             {me.hasSkippedExchange ? (
@@ -220,14 +221,14 @@ export default function MainLobby() {
                         </div>
                     )}
                     
-                    {/* Informacja w trakcie rozdawania dla Gracza */}
+                    {/* INFO */}
                     {(gameData.phase === 'DEALING' || gameData.phase === 'DEALING_2') && (
                         <p className="text-slate-400 italic">Trwa rozdawanie kart przez dealera...</p>
                     )}
                 </div>
             )}
 
-            {/* --- PANEL GŁOSOWANIA (Widoczny także dla osób, które zrobiły FOLD) --- */}
+            {/* VOTING */}
             {!isDealer && !me?.eliminated && gameData.phase === 'VOTING' && (
                 <div className="mt-4 bg-slate-800 text-white p-5 rounded-lg shadow-lg border border-red-500">
                     <h3 className="font-bold mb-4 text-red-400 text-lg border-b border-slate-600 pb-2">Faza Głosowania</h3>
@@ -240,7 +241,6 @@ export default function MainLobby() {
                             >
                                 Pass (Nie głosuj)
                             </Button>
-                            {/* Celowo usuwamy Dealera z listy do głosowania */}
                             {playingPlayers.filter((p: any) => p.uuid !== myUuid && !p.eliminated && p.uuid !== gameData.hostUuid).map((p: any) => (
                                 <Button 
                                     key={p.uuid}
@@ -255,20 +255,31 @@ export default function MainLobby() {
                 </div>
             )}
 
-            {/* --- EKRAN KOŃCOWY RUNDY --- */}
+            {/* END */}
             {gameData.phase === 'SHOWDOWN' && (
-                <div className="mt-4 bg-green-100 border-green-500 border-2 p-5 rounded-lg shadow-lg text-black">
-                    <h2 className="text-2xl font-bold text-green-800 mb-2">Rozstrzygnięcie Rundy!</h2>
+                <div className={`mt-4 border-2 p-5 rounded-lg shadow-lg text-black ${gameData.isGameOver ? 'bg-yellow-100 border-yellow-500' : 'bg-green-100 border-green-500'}`}>
+                    <h2 className={`text-2xl font-bold mb-2 ${gameData.isGameOver ? 'text-yellow-800' : 'text-green-800'}`}>
+                        {gameData.isGameOver ? 'GRA ZAKOŃCZONA!' : 'Rozstrzygnięcie Rundy!'}
+                    </h2>
+                    
                     {gameData.winnerData ? (
                         <>
-                            <p className="text-green-900 text-lg">Zwycięzca: <strong className="text-xl">{gameData.winnerData.username}</strong> zgarnia <strong className="text-green-700">${gameData.winnerData.pot}</strong>!</p>
-                            <p className="text-sm text-green-700 italic mt-1">Z układem: {gameData.winnerData.handName}</p>
+                            <p className={`${gameData.isGameOver ? 'text-yellow-900' : 'text-green-900'} text-lg`}>
+                                {gameData.isGameOver ? '' : 'Zwycięzca: '}
+                                <strong className="text-xl">{gameData.winnerData.username}</strong> 
+                                {gameData.isGameOver ? '' : ' zgarnia '}
+                                {gameData.isGameOver ? null : <strong className="text-green-700">${gameData.winnerData.pot}</strong>}
+                                {gameData.isGameOver ? '' : '!'}
+                            </p>
+                            <p className={`text-sm italic mt-1 ${gameData.isGameOver ? 'text-yellow-700 font-bold' : 'text-green-700'}`}>
+                                Z układem: {gameData.winnerData.handName}
+                            </p>
                         </>
                     ) : (
                         <p className="text-red-800 font-bold">Wszyscy spasowali!</p>
                     )}
                     
-                    {isDealer && (
+                    {isDealer && !gameData.isGameOver && (
                         <Button className="mt-4 bg-purple-700 hover:bg-purple-600 text-white font-bold shadow" onClick={() => sendAction('START_VOTING')}>
                             Przejdź do głosowania
                         </Button>
@@ -276,7 +287,7 @@ export default function MainLobby() {
                 </div>
             )}
 
-            {/* --- EKRAN WYNIKÓW GŁOSOWANIA --- */}
+            {/* VOTING RESULT */}
             {gameData.phase === 'VOTING_RESULT' && (
                 <div className="mt-4 bg-red-100 border-red-500 border-2 p-5 rounded-lg shadow-lg text-black">
                     <h2 className="text-2xl font-bold text-red-800 mb-2">Wyniki Głosowania</h2>
