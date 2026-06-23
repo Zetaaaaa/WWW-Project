@@ -1,4 +1,4 @@
-// const { WebSocketServer } = require("ws");
+// const { WebSocketServer } = require("ws"); // Nie używany
 import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import pkg from 'pokersolver';
@@ -73,11 +73,17 @@ class PlayerGame {
   }
 }
 
+// === ZMIANA 1: Nowa reprezentacja kart na backendzie ===
 function createDeck() {
-  const suits = ['S', 'H', 'C', 'D'];
+  const suits = ['S', 'H', 'C', 'D']; // Pik, Kier, Trefl, Karo
   const ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '0', 'J', 'Q', 'K', 'A'];
   let deck = [];
-  for (let s of suits) for (let r of ranks) deck.push(r + s);
+  // Zamiast '2S', tworzymy obiekty: { rank: '2', suit: 'S' }
+  for (let s of suits) {
+    for (let r of ranks) {
+      deck.push({ rank: r, suit: s });
+    }
+  }
   return deck.sort(() => Math.random() - 0.5);
 }
 
@@ -89,22 +95,22 @@ const LobbyMap = new Map();
 const activeSockets = {};
 
 //sample lobbies
-const lobbyTest = new Lobby(
-  "test",
-  Variant.NORMAL,
-  5,
-  LobbyStatus.AWAITING_PLAYERS,
-  "aaa",
-);
-const lobbyTest2 = new Lobby(
-  "test2",
-  Variant.LIMITED,
-  6,
-  LobbyStatus.AWAITING_PLAYERS,
-  "aaa",
-);
-LobbyMap.set(`ROOM_${lobbyTest.code}`, lobbyTest);
-LobbyMap.set(`ROOM_${lobbyTest2.code}`, lobbyTest2);
+// const lobbyTest = new Lobby(
+//   "test",
+//   Variant.NORMAL,
+//   5,
+//   LobbyStatus.AWAITING_PLAYERS,
+//   "aaa",
+// );
+// const lobbyTest2 = new Lobby(
+//   "test2",
+//   Variant.LIMITED,
+//   6,
+//   LobbyStatus.AWAITING_PLAYERS,
+//   "aaa",
+// );
+// LobbyMap.set(`ROOM_${lobbyTest.code}`, lobbyTest);
+// LobbyMap.set(`ROOM_${lobbyTest2.code}`, lobbyTest2);
 
 // const wss = new WebSocketServer({ port: 1145 });
 
@@ -308,6 +314,7 @@ io.on("connection", (socket) => {
 
     const isDealingPhase = lobbyData.phase === GamePhase.DEALING || lobbyData.phase === GamePhase.DEALING_2;
 
+    // === ZMIANA 2: Sanitizacja kart (wysyłanie obiektów zamiast stringów) ===
     const sanitizedPlayers = lobbyData.players.map(p => ({
       username: p.username,
       uuid: p.uuid,
@@ -315,8 +322,9 @@ io.on("connection", (socket) => {
       currentBet: p.currentBet,
       folded: p.folded,
       eliminated: p.eliminated,
-      cardCount: (isDealer || !isDealingPhase) ? (p.hand?.length || 0) : "?",
+      cardCount: p.hand?.length || 0, // Zmiana sanitizacji cardCount
       role: (isDealer || p.uuid === globalPlayer.uuid) ? (p.role || "???") : "???",
+      // Wysyłamy obiekty kart, jeśli faza na to pozwala
       hand: (isDealer || (lobbyData.phase === GamePhase.SHOWDOWN && !p.folded) || (p.uuid === globalPlayer.uuid && !isDealingPhase)) ? (p.hand || []) : []
     }));
 
@@ -327,6 +335,7 @@ io.on("connection", (socket) => {
       turnIndex: lobbyData.turnIndex,
       activePlayerUuid: lobbyData.players[lobbyData.turnIndex] ? lobbyData.players[lobbyData.turnIndex].uuid : null,
       players: sanitizedPlayers,
+      // TopCards to też obiekty
       topCards: isDealer && isDealingPhase ? lobbyData.deck.slice(0, 2) : [],
       winnerData: lobbyData.winnerData,
       round: lobbyData.round,
@@ -345,6 +354,7 @@ io.on("connection", (socket) => {
 
     if (action === "DEAL_CARD" && (lobbyData.phase === GamePhase.DEALING || lobbyData.phase === GamePhase.DEALING_2)) {
       const targetPlayer = playingPlayers.find(p => p.uuid === payload.targetUuid);
+      // Deck zawiera obiekty, p.hand będzie zawierać obiekty
       if (targetPlayer && targetPlayer.hand.length < 5 && lobbyData.deck.length > 0) {
         targetPlayer.hand.push(lobbyData.deck.shift());
 
@@ -411,6 +421,7 @@ io.on("connection", (socket) => {
         const removedCards = player.hand.filter((_, index) => payload.cardsToRemove.includes(index));
         const newHand = player.hand.filter((_, index) => !payload.cardsToRemove.includes(index));
 
+        // Deck nadal zawiera obiekty, dodajemy odrzucone obiekty
         lobbyData.deck.push(...removedCards);
         lobbyData.deck.sort(() => Math.random() - 0.5);
 
@@ -531,6 +542,7 @@ io.on("connection", (socket) => {
   });
 
 
+  // === ZMIANA 3: Modyfikacja Showdown, aby obsługiwać obiekty kart ===
   function doShowdown(lobbyData, playingPlayers) {
     lobbyData.phase = GamePhase.SHOWDOWN;
     const activePlayers = playingPlayers.filter(p => !p.folded && !p.eliminated);
@@ -538,9 +550,12 @@ io.on("connection", (socket) => {
     if (activePlayers.length === 0) return;
 
     let hands = activePlayers.map(p => {
+      // pokersolver oczekuje formatu 'Ks', '2h', 'Th' (gdzie T to 10).
+      // Konwertujemy obiekty z powrotem na ten format TYLKO na potrzeby biblioteki.
       let solverCards = p.hand.map(card => {
-        let rank = card[0] === '0' ? 'T' : card[0];
-        let suit = card[1].toLowerCase();
+        // '0' na backendzie oznacza '10', pokersolver potrzebuje 'T'.
+        let rank = card.rank === '0' ? 'T' : card.rank;
+        let suit = card.suit.toLowerCase(); // pokersolver oczekuje małych liter
         return rank + suit;
       });
 

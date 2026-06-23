@@ -1,20 +1,81 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { io, Socket } from "socket.io-client";
 import { getToken, getUsername } from '@/app/actions'; 
 import { getSocket } from "@/app/lib/socket";
 import { Button } from '@/components/ui/button';
 import { useRouter, useParams } from 'next/navigation'
 
+
+interface PokerCardData {
+    rank: string;
+    suit: string; 
+}
+
+function PokerCard({ card, hidden, selected, onClick, className }: { 
+    card?: PokerCardData, 
+    hidden?: boolean, 
+    selected?: boolean, 
+    onClick?: () => void,
+    className?: string
+}) {
+    if (hidden || !card) {
+        return (
+            <div 
+                className={`w-16 h-24 bg-blue-900 rounded-lg shadow-md border-2 border-slate-300 relative flex items-center justify-center ${className}`}
+                onClick={onClick}
+            >
+                <div className="absolute inset-2 border-2 border-blue-800 rounded-md opacity-50" />
+                <div className="w-8 h-8 text-blue-800 font-black text-2xl z-10">P</div>
+            </div>
+        );
+    }
+
+    const suitSymbolMap: Record<string, string> = {
+        'S': '♠', 
+        'H': '♥', 
+        'C': '♣', 
+        'D': '♦'  
+    };
+
+    const isRed = card.suit === 'H' || card.suit === 'D';
+    const textColor = isRed ? 'text-red-600' : 'text-black';
+    const suitSymbol = suitSymbolMap[card.suit];
+
+    const displayRank = card.rank === '0' ? '10' : card.rank;
+    const imageUrl = `/cards/${card.rank}${card.suit}.png`;
+
+    return (
+        <div 
+            onClick={onClick}
+            className={`cursor-pointer w-16 h-24 bg-white rounded-lg shadow-md border-2 relative transition-all duration-200 
+                ${selected ? 'border-blue-500 -translate-y-2 scale-105 shadow-xl' : 'border-slate-300 hover:border-slate-400'} 
+                ${className}`}
+        >
+            <div className={`absolute top-1 left-1 flex flex-col items-center font-bold text-lg leading-none ${textColor}`}>
+                <span>{displayRank}</span>
+                <span className="text-sm">{suitSymbol}</span>
+            </div>
+
+            <div className="absolute inset-0 flex items-center justify-center p-3 mt-4">
+
+            </div>
+
+            <div className={`absolute bottom-1 right-1 flex flex-col items-center font-bold text-lg leading-none rotate-180 ${textColor}`}>
+                <span>{displayRank}</span>
+                <span className="text-sm">{suitSymbol}</span>
+            </div>
+        </div>
+    );
+}
+
 export default function MainLobby() {
-    const socketRef = useRef<any | Socket>(null);
+    const socketRef = useRef<any>(null);
     const [username, setUsername] = useState('default');
     const [gameData, setGameData] = useState<any>(null);
     const [myRole, setMyRole] = useState<string>('');
     const [myUuid, setMyUuid] = useState<string>('');
     const params = useParams<{ game: string }>();
 
-    // Nowe stany lokalne
     const [raiseAmount, setRaiseAmount] = useState<string>('');
     const [selectedCardsToDiscard, setSelectedCardsToDiscard] = useState<number[]>([]);
 
@@ -62,8 +123,8 @@ export default function MainLobby() {
     if (!gameData) return <p>Ładowanie gry...</p>;
 
     const isDealer = myRole === 'DEALER';
-    const isMyTurn = gameData.activePlayerUuid === myUuid;
     const me = gameData.players.find((p: any) => p.uuid === myUuid);
+    const isMyTurn = gameData.activePlayerUuid === myUuid && !me?.folded && !me?.eliminated;
     const playingPlayers = gameData.players.filter((p: any) => p.role !== 'DEALER');
     
     const amountToCall = me ? Math.max(0, gameData.currentHighestBet - me.currentBet) : 0;
@@ -80,15 +141,16 @@ export default function MainLobby() {
                     )}
                 </div>
             </header>
+
             {/* DEALER DEALING */}
             {isDealer && (gameData.phase === 'DEALING' || gameData.phase === 'DEALING_2') && (
                 <div className="bg-slate-800 p-4 rounded text-white border border-blue-500 shadow-lg">
                     <h2 className="text-lg mb-2 font-bold text-blue-300">Panel Dealera (Rozdawanie)</h2>
                     <div className="mb-4">
                         <p className="text-sm text-slate-400">Karty na szczycie talii:</p>
-                        <div className="flex gap-2 text-black mt-2">
-                            {gameData.topCards.map((c: string, idx: number) => (
-                                <div key={idx} className="bg-white p-2 rounded font-bold w-12 text-center shadow">{c}</div>
+                        <div className="flex gap-2 mt-2">
+                            {gameData.topCards.map((c: PokerCardData, idx: number) => (
+                                <PokerCard key={idx} card={c} />
                             ))}
                         </div>
                     </div>
@@ -106,12 +168,13 @@ export default function MainLobby() {
                     </div>
                 </div>
             )}
+
             {/* TABLE */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {playingPlayers.map((p: any) => (
-                    <div key={p.uuid} className={`p-4 rounded border relative ${p.eliminated ? 'bg-gray-800 opacity-50 border-red-900' : 'bg-slate-50 border-slate-300'} ${p.uuid === gameData.activePlayerUuid && (gameData.phase === 'BETTING_1' || gameData.phase === 'BETTING_2') && !p.eliminated ? 'border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.5)] bg-yellow-50' : ''}`}>
+                    <div key={p.uuid} className={`p-4 rounded border relative transition-all duration-300 ${p.eliminated ? 'bg-gray-800 opacity-50 border-red-900' : 'bg-slate-50 border-slate-300'} ${p.uuid === gameData.activePlayerUuid && (gameData.phase === 'BETTING_1' || gameData.phase === 'BETTING_2') && !p.eliminated ? 'border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.5)] bg-yellow-50' : ''}`}>
                         {p.eliminated && <div className="absolute inset-0 flex items-center justify-center text-red-500 font-black text-2xl rotate-12 z-10">WYELIMINOWANY</div>}
-                        <h3 className="font-bold flex justify-between items-center text-slate-800">
+                        <h3 className="font-bold flex justify-between items-center text-slate-800 border-b border-slate-200 pb-2 mb-3">
                             <span className={p.eliminated ? 'text-gray-400' : ''}>
                                 {p.username} {p.uuid === myUuid ? '(Ty)' : ''}
                                 {(isDealer || p.uuid === myUuid) && p.role === 'ACCOMPLICE' && <span className="text-xs ml-2 text-purple-600 bg-purple-100 px-2 py-1 rounded border border-purple-300">Wspólnik</span>}
@@ -122,20 +185,21 @@ export default function MainLobby() {
                         </h3>
                         {!p.eliminated && (
                             <>
-                                <p className="text-sm text-slate-500">Obecny bet: <span className="font-semibold">${p.currentBet}</span></p>
-                                <div className="flex gap-2 mt-3 min-h-[40px]">
+                                <p className="text-sm text-slate-500 mb-3">Obecny bet: <span className="font-semibold text-slate-700">${p.currentBet}</span></p>
+                                <div className="flex gap-2 mt-1 min-h-[100px] items-center">
                                     {p.folded ? (
-                                        <p className="text-sm text-red-500 italic mt-2">Spasował (Karty ukryte)</p>
-                                    ) : p.cardCount === '?' ? (
-                                        <p className="text-sm text-slate-500 italic mt-2 animate-pulse">Trwa rozdawanie kart...</p>
+                                        <p className="text-sm text-red-500 italic">Spasował (Karty ukryte)</p>
+                                    /* POPRAWKA 2: Dodano warunek `&& !isDealer`. Dealer pomija ten komunikat i widzi karty w czasie rzeczywistym */
+                                    ) : (gameData.phase === 'DEALING' || gameData.phase === 'DEALING_2') && p.cardCount < 5 && !isDealer ? (
+                                         <p className="text-sm text-slate-500 italic animate-pulse">Trwa rozdawanie kart...</p>
                                     ) : p.hand.length > 0 ? (
-                                        p.hand.map((card: string, i: number) => (
-                                            <div key={i} className="bg-white text-black p-2 rounded shadow border border-slate-300 font-bold text-center w-11">
-                                                {card}
-                                            </div>
+                                        p.hand.map((card: PokerCardData, i: number) => (
+                                            <PokerCard key={i} card={card} />
                                         ))
                                     ) : (
-                                        <p className="text-sm text-slate-400 italic mt-2">Karty ukryte ({p.cardCount}/5)</p>
+                                        [...Array(p.cardCount || 0)].map((_, i) => (
+                                            <PokerCard key={i} hidden />
+                                        ))
                                     )}
                                 </div>
                             </>
@@ -149,7 +213,6 @@ export default function MainLobby() {
                 <div className="mt-4 bg-slate-800 text-white p-5 rounded-lg shadow-lg border border-slate-600">
                     <h3 className="font-bold mb-4 text-slate-200 text-lg border-b border-slate-600 pb-2">Twoje akcje</h3>
                     
-                    {/* BETTING */}
                     {(gameData.phase === 'BETTING_1' || gameData.phase === 'BETTING_2') && isMyTurn ? (
                         <div className="flex flex-col gap-4">
                             <div className="flex gap-3 items-center">
@@ -187,31 +250,33 @@ export default function MainLobby() {
                         <p className="text-slate-400 italic">Czekaj na swoją kolej...</p>
                     ) : null}
 
-                    {/* EXCHANGE */}
                     {gameData.phase === 'EXCHANGE' && (
                         <div className="flex flex-col gap-4">
                             {me.hasSkippedExchange ? (
                                 <p className="text-slate-400 italic">Oczekiwanie na innych graczy...</p>
                             ) : (
                                 <>
-                                    <p className="text-sm text-slate-300">Kliknij na karty, które chcesz odrzucić:</p>
-                                    <div className="flex gap-2">
-                                        {me.hand?.map((card: string, i: number) => {
+                                    <p className="text-sm text-slate-300">Kliknij na karty, które chcesz odrzucić (maksymalnie 3):</p>
+                                    <div className="flex gap-2 mt-1">
+                                        {me.hand?.map((card: PokerCardData, i: number) => {
                                             const isSelected = selectedCardsToDiscard.includes(i);
                                             return (
-                                                <div 
+                                                <PokerCard 
                                                     key={i} 
-                                                    onClick={() => toggleCardDiscard(i)}
-                                                    className={`cursor-pointer p-2 rounded shadow font-bold text-center w-12 border-2 transition-all duration-200
-                                                        ${isSelected ? 'bg-red-500 border-red-300 text-white -translate-y-2 scale-105' : 'bg-white text-black border-transparent hover:bg-slate-200'}`}
-                                                >
-                                                    {card}
-                                                </div>
+                                                    card={card} 
+                                                    selected={isSelected}
+                                                    onClick={() => {
+                                                        if (isSelected || selectedCardsToDiscard.length < 3) {
+                                                            toggleCardDiscard(i);
+                                                        }
+                                                    }} 
+                                                />
                                             )
                                         })}
                                     </div>
                                     <Button 
                                         className="w-fit mt-4 bg-blue-600 hover:bg-blue-500 text-white font-bold"
+                                        disabled={selectedCardsToDiscard.length > 3}
                                         onClick={() => sendAction('EXCHANGE_CARDS', { uuid: myUuid, cardsToRemove: selectedCardsToDiscard })}
                                     >
                                         Zatwierdź odrzucenie ({selectedCardsToDiscard.length} kart)
@@ -221,7 +286,6 @@ export default function MainLobby() {
                         </div>
                     )}
                     
-                    {/* INFO */}
                     {(gameData.phase === 'DEALING' || gameData.phase === 'DEALING_2') && (
                         <p className="text-slate-400 italic">Trwa rozdawanie kart przez dealera...</p>
                     )}
